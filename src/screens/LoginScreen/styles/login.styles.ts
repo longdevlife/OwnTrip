@@ -13,55 +13,53 @@ export const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
+
+  // Logo — to và nằm giữa trên theo mẫu
   logoContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: 60,
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: 500,
+    height: 500,
   },
+
+  // Nút đăng nhập ở dưới cùng
   bottomContainer: {
-    paddingHorizontal: 32,
-    paddingBottom: 80,
-    gap: 14,
+    paddingHorizontal: 28,
+    paddingBottom: 150,
+    gap: 16,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 30,
-    gap: 12,
+    borderRadius: 14,
+    gap: 14,
   },
+
+  // Google — nền trắng
   googleButton: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#4285F4',
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   googleText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333333',
   },
+
+  // Apple — nền đen
   appleButton: {
     backgroundColor: '#000000',
-  },
-  appleIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
   },
   appleText: {
     fontSize: 16,
