@@ -5,11 +5,11 @@ export const API_CONFIG = {
 
 export const ENDPOINTS = {
   AUTH: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    GOOGLE_LOGIN: '/auth/google',
-    LOGOUT: '/auth/logout',
-    REFRESH_TOKEN: '/auth/refresh',
+    LOGIN: '/api/users/login',
+    REGISTER: '/api/users/register',
+    GOOGLE_LOGIN: '/api/users/login/google',
+    LOGOUT: '/api/users/logout',
+    REFRESH_TOKEN: '/api/users/refresh-token',
   },
   USERS: {
     PROFILE: '/users/me',
