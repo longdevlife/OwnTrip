@@ -57,11 +57,11 @@ export const styles = StyleSheet.create({
     color: '#333333',
   },
 
-  // Apple — nền đen
-  appleButton: {
-    backgroundColor: '#000000',
+  // Email — nền xanh đậm
+  emailButton: {
+    backgroundColor: '#1A3C5E',
   },
-  appleText: {
+  emailText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',

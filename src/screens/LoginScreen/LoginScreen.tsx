@@ -1,13 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  Alert,
-  View,
-  Text,
-  ImageBackground,
-  Image,
-  TouchableOpacity,
-  StatusBar,
-} from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ImageBackground, Image, TouchableOpacity, StatusBar } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { FontAwesome } from '@expo/vector-icons';
 
 import * as WebBrowser from 'expo-web-browser';
@@ -16,6 +9,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
+import AuthModal from './components/AuthModal';
 import { styles } from './styles/login.styles';
 import { authService } from '@/services/authService';
 
@@ -25,7 +19,10 @@ const logo = require('@/assets/images/logo.png');
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const loginCalled = useRef(false);
+
+  // ===== GOOGLE SIGN-IN CONFIG =====
   const isExpoGo = Constants.appOwnership === 'expo';
   const owner = Constants.expoConfig?.owner ?? 'khoale3004';
   const slug = Constants.expoConfig?.slug ?? 'owntrip';
@@ -38,10 +35,8 @@ export default function LoginScreen() {
       });
 
   const webClientId = '524802175661-62nri3lt2vkio173e1imnt375qt9kjc5.apps.googleusercontent.com';
-
   const androidClientId =
     '524802175661-smom6nhj2khdc5lq2ng15ovph3vgj28o.apps.googleusercontent.com';
-
   const effectiveAndroidClientId = isExpoGo ? webClientId : androidClientId;
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -55,14 +50,13 @@ export default function LoginScreen() {
   useEffect(() => {
     if (response?.type === 'success' && !loginCalled.current) {
       loginCalled.current = true;
-
       const idToken = response.params?.id_token ?? response.authentication?.idToken;
 
       if (idToken) {
         loginWithBackend(idToken);
       } else {
         loginCalled.current = false;
-        Alert.alert('Google Login Failed', 'No id token returned from Google.');
+        Toast.show({ type: 'error', text1: 'Google Login Failed', text2: 'No id token returned from Google.' });
       }
     }
   }, [response]);
@@ -70,7 +64,6 @@ export default function LoginScreen() {
   const loginWithBackend = async (idToken: string) => {
     try {
       const res: any = await authService.googleLogin(idToken);
-
       console.log('LOGIN SUCCESS:', res);
 
       if (res?.token) {
@@ -82,12 +75,14 @@ export default function LoginScreen() {
     }
   };
 
+  // ===== HANDLERS =====
   const handleGoogleLogin = () => {
     promptAsync();
   };
 
-  const handleAppleLogin = () => {
-    console.log('Apple Login pressed');
+  const handleLoginSuccess = (data: any) => {
+    console.log('Email login success:', data);
+    // TODO: Lưu token → navigate đến (tabs)
   };
 
   return (
@@ -102,6 +97,7 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.bottomContainer}>
+          {/* Nút Google — gọi promptAsync */}
           <TouchableOpacity
             style={[styles.button, styles.googleButton]}
             onPress={handleGoogleLogin}
@@ -112,16 +108,24 @@ export default function LoginScreen() {
             <Text style={styles.googleText}>Log in by Google</Text>
           </TouchableOpacity>
 
+          {/* Nút Email — mở AuthModal */}
           <TouchableOpacity
-            style={[styles.button, styles.appleButton]}
-            onPress={handleAppleLogin}
+            style={[styles.button, styles.emailButton]}
+            onPress={() => setShowAuthModal(true)}
             activeOpacity={0.8}
           >
-            <FontAwesome name="apple" size={20} color="#FFFFFF" />
-            <Text style={styles.appleText}>Log in by Apple</Text>
+            <FontAwesome name="envelope" size={18} color="#FFFFFF" />
+            <Text style={styles.emailText}>Log in by Email</Text>
           </TouchableOpacity>
         </View>
       </ImageBackground>
+
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLoginSuccess={handleLoginSuccess}
+        onGoogleLogin={handleGoogleLogin}
+      />
     </View>
   );
 }

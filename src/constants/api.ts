@@ -12,14 +12,14 @@ export const ENDPOINTS = {
     REFRESH_TOKEN: '/api/users/refresh-token',
   },
   USERS: {
-    PROFILE: '/users/me',
-    UPDATE: '/users/update',
+    PROFILE: '/api/users/me',
+    UPDATE: '/api/users/update',
   },
   TRIPS: {
-    LIST: '/trips',
-    DETAIL: (id: string) => `/trips/${id}`,
-    CREATE: '/trips',
-    UPDATE: (id: string) => `/trips/${id}`,
-    DELETE: (id: string) => `/trips/${id}`,
+    LIST: '/api/trips',
+    DETAIL: (id: string) => `/api/trips/${id}`,
+    CREATE: '/api/trips',
+    UPDATE: (id: string) => `/api/trips/${id}`,
+    DELETE: (id: string) => `/api/trips/${id}`,
   },
 };
