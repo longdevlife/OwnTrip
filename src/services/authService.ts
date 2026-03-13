@@ -1,35 +1,24 @@
 import { ENDPOINTS } from '../constants/api';
 import axiosClient from './axiosClient';
 
-export interface UserLoginData {
-  email: string;
-  password?: string;
-  // Dành cho OAuth
-  access_token?: string;
-}
-
-export interface UserResponseData {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-  };
-  token: string;
-}
-
-// Tập hợp các function gọi API liên quan đến Authentication
 export const authService = {
-  /**
-   * Đăng nhập người dùng bằng email / password
-   */
-  login: async (credentials: UserLoginData): Promise<UserResponseData> => {
-    return await axiosClient.post<any, UserResponseData>(ENDPOINTS.AUTH.LOGIN, credentials);
+  login: async (email: string, password: string) => {
+    return await axiosClient.post(ENDPOINTS.AUTH.LOGIN, { email, password });
   },
 
-  /**
-   * Lấy profile hiện tại của User
-   */
+  register: async (name: string, email: string, password: string) => {
+    return await axiosClient.post(ENDPOINTS.AUTH.REGISTER, { name, email, password });
+  },
+
+  googleLogin: async (idToken: string) => {
+    return await axiosClient.post(ENDPOINTS.AUTH.GOOGLE_LOGIN, { idToken });
+  },
+
   getProfile: async () => {
     return await axiosClient.get(ENDPOINTS.USERS.PROFILE);
+  },
+
+  logout: async () => {
+    return await axiosClient.post(ENDPOINTS.AUTH.LOGOUT);
   },
 };
