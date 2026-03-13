@@ -63,13 +63,10 @@ export default function AuthModal({
     try {
       const result = await authService.login(email.trim(), password);
       console.log('=== LOGIN RESULT ===', JSON.stringify(result));
-      Toast.show({ type: 'success', text1: 'Đăng nhập thành công', text2: 'Chào mừng bạn trở lại!' });
-      // Đợi 1.5s để user thấy toast, rồi mới đóng modal
-      setTimeout(() => {
-        onLoginSuccess(result);
-        resetForm();
-        onClose();
-      }, 1500);
+      // Navigate trước, đóng modal sau — tránh flash login screen
+      onLoginSuccess(result);
+      resetForm();
+      onClose();
     } catch (error: any) {
       console.log('=== LOGIN ERROR ===', JSON.stringify(error?.response?.data));
       const msg = error?.response?.data?.message || 'Email hoặc mật khẩu không đúng';

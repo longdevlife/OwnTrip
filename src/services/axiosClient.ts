@@ -12,11 +12,11 @@ const axiosClient = axios.create({
 // Request Interceptor: Tự gắn token vào header
 axiosClient.interceptors.request.use(
   async (config) => {
-    // TODO: Lấy token từ SecureStore khi setup auth
-    // const token = await SecureStore.getItemAsync('userToken');
-    // if (token && config.headers) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const token = await AsyncStorage.getItem('token');
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => Promise.reject(error),

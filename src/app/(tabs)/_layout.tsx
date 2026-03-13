@@ -1,16 +1,20 @@
 import React from 'react';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { Tabs } from 'expo-router';
+import CustomTabBar from '@/components/navigation/CustomTabBar';
 
 export default function TabsLayout() {
-  const colorScheme = useColorScheme();
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <Tabs.Screen name="index" options={{ title: 'Home' }} />
+      <Tabs.Screen name="trips" options={{ title: 'Trips' }} />
+      <Tabs.Screen name="checkin" options={{ title: 'Check-in' }} />
+      <Tabs.Screen name="store" options={{ title: 'Store' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+    </Tabs>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ImageBackground, Image, TouchableOpacity, StatusBar } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
@@ -21,6 +22,7 @@ WebBrowser.maybeCompleteAuthSession();
 export default function LoginScreen() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const loginCalled = useRef(false);
+  const router = useRouter();
 
   // ===== GOOGLE SIGN-IN CONFIG =====
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -59,19 +61,23 @@ export default function LoginScreen() {
         Toast.show({ type: 'error', text1: 'Google Login Failed', text2: 'No id token returned from Google.' });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
 
   const loginWithBackend = async (idToken: string) => {
     try {
       const res: any = await authService.googleLogin(idToken);
-      console.log('LOGIN SUCCESS:', res);
+      console.log('GOOGLE LOGIN SUCCESS:', res);
 
       if (res?.token) {
         await AsyncStorage.setItem('token', res.token);
         console.log('TOKEN SAVED');
+        router.replace('/(tabs)' as any);
       }
     } catch (error) {
       console.log('Google login error:', error);
+      loginCalled.current = false;
+      Toast.show({ type: 'error', text1: 'Google Login Failed', text2: 'Không thể đăng nhập bằng Google.' });
     }
   };
 
@@ -80,9 +86,14 @@ export default function LoginScreen() {
     promptAsync();
   };
 
-  const handleLoginSuccess = (data: any) => {
+  const handleLoginSuccess = async (data: any) => {
     console.log('Email login success:', data);
-    // TODO: Lưu token → navigate đến (tabs)
+    const token = data?.token;
+    if (token) {
+      await AsyncStorage.setItem('token', token);
+      console.log('TOKEN SAVED');
+      router.replace('/(tabs)' as any);
+    }
   };
 
   return (
