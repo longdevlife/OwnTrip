@@ -1,6 +1,5 @@
 import axios from 'axios';
 import { API_CONFIG } from '../constants/api';
-// import * as SecureStore from 'expo-secure-store'; // Cài đặt expo-secure-store để lưu token an toàn: npx expo install expo-secure-store
 
 const axiosClient = axios.create({
   baseURL: API_CONFIG.BASE_URL,
@@ -10,44 +9,35 @@ const axiosClient = axios.create({
   },
 });
 
-// Interceptor cho Request: Gắn token vào header trước khi gọi API
+// Request Interceptor: Tự gắn token vào header
 axiosClient.interceptors.request.use(
   async (config) => {
-    // Lấy token từ bộ nhớ (Ví dụ: SecureStore, AsyncStorage)
-    // const token = await SecureStore.getItemAsync('userToken');
-    // if (token && config.headers) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const token = await AsyncStorage.getItem('token');
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
-// Interceptor cho Response: Xử lý dữ liệu trả về và lỗi chung (như 401 hết hạn token)
+// Response Interceptor: Tự lấy .data, bắt lỗi chung
 axiosClient.interceptors.response.use(
-  (response) => {
-    // Lấy trực tiếp dữ liệu từ response (bỏ qua config, headers, status)
-    return response.data;
-  },
+  (response) => response.data,
   (error) => {
-    // Bắt lỗi tập trung
     if (error.response) {
-      // Máy chủ trả về lỗi (4xx, 5xx)
-      console.error('Lỗi API [Response]:', error.response.status, error.response.data);
+      const { status, data } = error.response;
+      console.error(`API Error [${status}]:`, data);
 
-      // Nếu là 401 Unauthorized -> Đăng xuất người dùng hoặc gọi API Refresh Token
-      if (error.response.status === 401) {
-        console.warn('Token hết hạn. Cần đăng nhập lại!');
-        // dispatch(logoutAction) ...
+      if (status === 401) {
+        console.warn('Token hết hạn!');
+        // TODO: Redirect về login hoặc refresh token
       }
     } else if (error.request) {
-      // Gọi API nhưng không nhận được phản hồi (rớt mạng, server chết)
-      console.error('Lỗi Mạng [Request]: Không nhận được phản hồi', error.message);
+      console.error('Lỗi mạng: Không nhận được phản hồi từ server');
     } else {
-      // Lỗi nội bộ hoặc cấu hình sai
-      console.error('Lỗi Cấu hình:', error.message);
+      console.error('Lỗi cấu hình:', error.message);
     }
     return Promise.reject(error);
   },

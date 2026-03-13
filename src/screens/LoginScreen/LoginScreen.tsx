@@ -1,0 +1,142 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, ImageBackground, Image, TouchableOpacity, StatusBar } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { FontAwesome } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+
+import AuthModal from './components/AuthModal';
+import { styles } from './styles/login.styles';
+import { authService } from '@/services/authService';
+
+const loginBg = require('@/assets/images/login-bg.png');
+const logo = require('@/assets/images/logo.png');
+
+WebBrowser.maybeCompleteAuthSession();
+
+export default function LoginScreen() {
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const loginCalled = useRef(false);
+  const router = useRouter();
+
+  // ===== GOOGLE SIGN-IN CONFIG =====
+  const isExpoGo = Constants.appOwnership === 'expo';
+  const owner = Constants.expoConfig?.owner ?? 'khoale3004';
+  const slug = Constants.expoConfig?.slug ?? 'owntrip';
+  const projectFullName = `@${owner.replace(/^@/, '')}/${slug}`;
+  const redirectUri = isExpoGo
+    ? `https://auth.expo.io/${projectFullName}/oauthredirect`
+    : AuthSession.makeRedirectUri({
+        scheme: 'owntrip',
+        path: 'oauthredirect',
+      });
+
+  const webClientId = '524802175661-62nri3lt2vkio173e1imnt375qt9kjc5.apps.googleusercontent.com';
+  const androidClientId =
+    '524802175661-smom6nhj2khdc5lq2ng15ovph3vgj28o.apps.googleusercontent.com';
+  const effectiveAndroidClientId = isExpoGo ? webClientId : androidClientId;
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: webClientId,
+    redirectUri,
+    webClientId,
+    androidClientId: effectiveAndroidClientId,
+    iosClientId: webClientId,
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success' && !loginCalled.current) {
+      loginCalled.current = true;
+      const idToken = response.params?.id_token ?? response.authentication?.idToken;
+
+      if (idToken) {
+        loginWithBackend(idToken);
+      } else {
+        loginCalled.current = false;
+        Toast.show({ type: 'error', text1: 'Google Login Failed', text2: 'No id token returned from Google.' });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [response]);
+
+  const loginWithBackend = async (idToken: string) => {
+    try {
+      const res: any = await authService.googleLogin(idToken);
+      console.log('GOOGLE LOGIN SUCCESS:', res);
+
+      if (res?.token) {
+        await AsyncStorage.setItem('token', res.token);
+        console.log('TOKEN SAVED');
+        router.replace('/(tabs)' as any);
+      }
+    } catch (error) {
+      console.log('Google login error:', error);
+      loginCalled.current = false;
+      Toast.show({ type: 'error', text1: 'Google Login Failed', text2: 'Không thể đăng nhập bằng Google.' });
+    }
+  };
+
+  // ===== HANDLERS =====
+  const handleGoogleLogin = () => {
+    promptAsync();
+  };
+
+  const handleLoginSuccess = async (data: any) => {
+    console.log('Email login success:', data);
+    const token = data?.token;
+    if (token) {
+      await AsyncStorage.setItem('token', token);
+      console.log('TOKEN SAVED');
+      router.replace('/(tabs)' as any);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+
+      <ImageBackground source={loginBg} style={styles.background} resizeMode="cover">
+        <View style={styles.overlay} />
+
+        <View style={styles.logoContainer}>
+          <Image source={logo} style={styles.logo} resizeMode="contain" />
+        </View>
+
+        <View style={styles.bottomContainer}>
+          {/* Nút Google — gọi promptAsync */}
+          <TouchableOpacity
+            style={[styles.button, styles.googleButton]}
+            onPress={handleGoogleLogin}
+            activeOpacity={0.8}
+            disabled={!request}
+          >
+            <FontAwesome name="google" size={20} color="#4285F4" />
+            <Text style={styles.googleText}>Log in by Google</Text>
+          </TouchableOpacity>
+
+          {/* Nút Email — mở AuthModal */}
+          <TouchableOpacity
+            style={[styles.button, styles.emailButton]}
+            onPress={() => setShowAuthModal(true)}
+            activeOpacity={0.8}
+          >
+            <FontAwesome name="envelope" size={18} color="#FFFFFF" />
+            <Text style={styles.emailText}>Log in by Email</Text>
+          </TouchableOpacity>
+        </View>
+      </ImageBackground>
+
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLoginSuccess={handleLoginSuccess}
+        onGoogleLogin={handleGoogleLogin}
+      />
+    </View>
+  );
+}

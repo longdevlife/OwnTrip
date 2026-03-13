@@ -1,23 +1,25 @@
-// URL cấu hình API, dùng biến môi trường để bảo mật và dễ thay đổi theo môi trường dev/prod
 export const API_CONFIG = {
-  // Team có thể tạo file .env và thêm EXPO_PUBLIC_API_URL=https://api.tuicua-team.com
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://api.example.com/api/v1',
-  TIMEOUT: 15000, // Timeout mặc định là 15 giây
+  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://owntrip.vercel.app',
+  TIMEOUT: 15000,
 };
 
-// Quản lý định tuyến API tĩnh để dễ tìm và tái sử dụng
 export const ENDPOINTS = {
   AUTH: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    REFRESH_TOKEN: '/auth/refresh',
+    LOGIN: '/api/users/login',
+    REGISTER: '/api/users/register',
+    GOOGLE_LOGIN: '/api/users/login/google',
+    LOGOUT: '/api/users/logout',
+    REFRESH_TOKEN: '/api/users/refresh-token',
   },
   USERS: {
-    PROFILE: '/users/me',
-    UPDATE: '/users/update',
+    PROFILE: '/api/users/me',
+    UPDATE: '/api/users/update',
   },
   TRIPS: {
-    LIST: '/trips',
-    DETAIL: (id: string) => `/trips/${id}`,
+    LIST: '/api/trips',
+    DETAIL: (id: string) => `/api/trips/${id}`,
+    CREATE: '/api/trips',
+    UPDATE: (id: string) => `/api/trips/${id}`,
+    DELETE: (id: string) => `/api/trips/${id}`,
   },
 };

@@ -1,14 +1,18 @@
 {
   "expo": {
     "name": "owntrip",
+    "owner": "khoale3004",
     "slug": "owntrip",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "owntrip",
+    "extra": {
+      "googleWebClientId": "524802175661-62nri3lt2vkio173e1imnt375qt9kjc5.apps.googleusercontent.com"
+    },
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
       "adaptiveIcon": {
