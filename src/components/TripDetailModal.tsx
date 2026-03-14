@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Modal, Dimensions } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { Feather } from '@expo/vector-icons';
 import { TripDetailResponse, tripService } from '../services/tripService';
+import { getImageSource } from '../utils/imageUtils';
 
 interface TripDetailModalProps {
   visible: boolean;
@@ -41,7 +43,7 @@ export default function TripDetailModal({ visible, loading, selectedTripDetail, 
           ) : selectedTripDetail && (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
               <View style={[styles.modalGallery, { height: 260 }]}>
-                <Image source={{ uri: selectedTripDetail.trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800' }} style={[styles.modalImage, { width, height: 260 }]} />
+                <ExpoImage source={getImageSource(selectedTripDetail.trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800')} style={[styles.modalImage, { width, height: 260 }]} contentFit="cover" />
                 <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
                   <Feather name="x" size={24} color="#FFF" />
                 </TouchableOpacity>

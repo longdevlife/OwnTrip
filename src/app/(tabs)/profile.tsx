@@ -17,6 +17,7 @@ import {
   Platform,
   Switch,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +30,7 @@ import { userService, UserProfile } from '@/services/userService';
 import { tripService, Trip, TripDetailResponse } from '@/services/tripService';
 import TripDetailModal from '@/components/TripDetailModal';
 import { useChatbotSetting } from '@/context/ChatbotSettingContext';
+import { getImageSource } from '@/utils/imageUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -291,7 +293,7 @@ export default function ProfileScreen() {
         >
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
-              <Text style={styles.headerTitle}>Profile</Text>
+              <Text style={styles.headerTitle}>Hồ sơ</Text>
               <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
                 <Feather name="log-out" size={20} color="#FFF" />
               </TouchableOpacity>
@@ -303,9 +305,10 @@ export default function ProfileScreen() {
           {/* Profile Card */}
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
-              <Image 
-                source={{ uri: profile?.image || 'https://i.pravatar.cc/300' }} 
+              <ExpoImage 
+                source={getImageSource(profile?.image || 'https://i.pravatar.cc/300')} 
                 style={styles.avatar} 
+                contentFit="cover"
               />
               {profile?.isVerified && (
                 <View style={styles.verifiedBadge}>
@@ -314,7 +317,7 @@ export default function ProfileScreen() {
               )}
             </View>
             
-            <Text style={styles.userName}>{profile?.displayName || 'User'}</Text>
+            <Text style={styles.userName}>{profile?.displayName || 'Người dùng'}</Text>
             <Text style={styles.userEmail}>{profile?.email}</Text>
             
             <View style={styles.roleTag}>
@@ -322,7 +325,7 @@ export default function ProfileScreen() {
             </View>
 
             <TouchableOpacity style={styles.editBtn} onPress={openEditModal}>
-              <Text style={styles.editBtnText}>Edit Profile</Text>
+              <Text style={styles.editBtnText}>Chỉnh sửa hồ sơ</Text>
             </TouchableOpacity>
           </View>
 
@@ -333,7 +336,7 @@ export default function ProfileScreen() {
                 <FontAwesome5 name="wallet" size={20} color="#005CB8" />
               </View>
               <View>
-                <Text style={styles.assetLabel}>Balance</Text>
+                <Text style={styles.assetLabel}>Số dư</Text>
                 <Text style={styles.assetValue}>${profile?.balance?.toLocaleString() || 0}</Text>
               </View>
             </View>
@@ -345,7 +348,7 @@ export default function ProfileScreen() {
                 <MaterialIcons name="stars" size={24} color="#FFB300" />
               </View>
               <View>
-                <Text style={styles.assetLabel}>Points</Text>
+                <Text style={styles.assetLabel}>Điểm thưởng</Text>
                 <Text style={styles.assetValue}>{profile?.points?.toLocaleString() || 0}</Text>
               </View>
             </View>
@@ -353,7 +356,7 @@ export default function ProfileScreen() {
 
           {/* Trips Section */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Trips</Text>
+            <Text style={styles.sectionTitle}>Chuyến đi của tôi</Text>
           </View>
 
           {trips.length === 0 ? (
@@ -371,9 +374,10 @@ export default function ProfileScreen() {
             <View style={styles.tripsList}>
               {trips.slice(0, 3).map((trip, index) => (
                 <TouchableOpacity key={index} style={styles.tripItem} onPress={() => handleTripPress(trip._id)}>
-                   <Image 
-                    source={{ uri: trip.provinceImage || 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800' }} 
+                   <ExpoImage 
+                    source={getImageSource(trip.provinceImage || 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800')} 
                     style={styles.tripImage} 
+                    contentFit="cover"
                   />
                   <View style={styles.tripInfo}>
                     <Text style={styles.tripTitle} numberOfLines={1}>{trip.title}</Text>
@@ -381,7 +385,7 @@ export default function ProfileScreen() {
                       <Feather name="map-pin" size={12} color="#718096" />
                       <Text style={styles.tripDestination}>{trip.destination}</Text>
                       <View style={styles.dot} />
-                      <Text style={styles.tripDays}>{trip.totalDays} days</Text>
+                      <Text style={styles.tripDays}>{trip.totalDays} ngày</Text>
                     </View>
                   </View>
                   <Feather name="chevron-right" size={20} color="#CBD5E0" />
@@ -396,7 +400,7 @@ export default function ProfileScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: '#EBF8FF' }]}>
                   <Feather name="shield" size={18} color="#3182CE" />
                 </View>
-                <Text style={styles.settingLabel}>Privacy & Security</Text>
+                <Text style={styles.settingLabel}>Quyền riêng tư & Bảo mật</Text>
                 <Feather name="chevron-right" size={20} color="#CBD5E0" />
              </TouchableOpacity>
 
@@ -404,7 +408,7 @@ export default function ProfileScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: '#F0FFF4' }]}>
                   <Feather name="bell" size={18} color="#38A169" />
                 </View>
-                <Text style={styles.settingLabel}>Notifications</Text>
+                <Text style={styles.settingLabel}>Thông báo</Text>
                 <Feather name="chevron-right" size={20} color="#CBD5E0" />
              </TouchableOpacity>
 
@@ -413,7 +417,7 @@ export default function ProfileScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: '#EBF4FF' }]}>
                   <Feather name="message-square" size={18} color="#4A7CFF" />
                 </View>
-                <Text style={styles.settingLabel}>AI Assistant Button</Text>
+                <Text style={styles.settingLabel}>Nút trợ lý AI</Text>
                 <Switch
                   value={aiButtonEnabled}
                   onValueChange={setAiButtonEnabled}
@@ -426,7 +430,7 @@ export default function ProfileScreen() {
                 <View style={[styles.settingIcon, { backgroundColor: '#EBEEF5' }]}>
                   <Feather name="help-circle" size={18} color="#4A5568" />
                 </View>
-                <Text style={styles.settingLabel}>Help Center</Text>
+                <Text style={styles.settingLabel}>Trung tâm trợ giúp</Text>
                 <Feather name="chevron-right" size={20} color="#CBD5E0" />
              </TouchableOpacity>
           </View>
@@ -448,17 +452,17 @@ export default function ProfileScreen() {
             style={styles.modalContent}
           >
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <Text style={styles.modalTitle}>Chỉnh sửa hồ sơ</Text>
               
               <View style={styles.modalAvatarContainer}>
                 <Image 
-                  source={{ uri: newImage || 'https://i.pravatar.cc/300' }} 
+                  source={getImageSource(newImage || 'https://i.pravatar.cc/300')} 
                   style={styles.modalAvatar} 
                 />
               </View>
               
               <View style={styles.editInputGroup}>
-                <Text style={styles.editInputLabel}>Display Name</Text>
+                <Text style={styles.editInputLabel}>Tên hiển thị</Text>
                 <TextInput
                   style={styles.editInput}
                   value={newDisplayName}
@@ -468,7 +472,7 @@ export default function ProfileScreen() {
               </View>
 
               <View style={styles.editInputGroup}>
-                <Text style={styles.editInputLabel}>Profile Picture</Text>
+                <Text style={styles.editInputLabel}>Ảnh đại diện</Text>
                 <View style={styles.imageEditRow}>
                   <TouchableOpacity style={styles.pickImageBtn} onPress={pickImage}>
                     <Feather name="image" size={18} color="#007AFF" />
