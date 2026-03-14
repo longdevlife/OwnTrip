@@ -1,18 +1,33 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, ActivityIndicator, Modal, Dimensions } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { TripDetailResponse } from '../services/tripService';
+import { TripDetailResponse, tripService } from '../services/tripService';
 
 interface TripDetailModalProps {
   visible: boolean;
   loading: boolean;
   selectedTripDetail: TripDetailResponse | null;
   onClose: () => void;
+  onRefresh?: () => void;
 }
 
 const { width } = Dimensions.get('window');
 
-export default function TripDetailModal({ visible, loading, selectedTripDetail, onClose }: TripDetailModalProps) {
+export default function TripDetailModal({ visible, loading, selectedTripDetail, onClose, onRefresh }: TripDetailModalProps) {
+  const [publishing, setPublishing] = React.useState(false);
+
+  const handlePublish = async () => {
+    if (!selectedTripDetail?.trip._id) return;
+    setPublishing(true);
+    const success = await tripService.publishTrip(selectedTripDetail.trip._id);
+    if (success) {
+        // Optionally show success toast/alert here
+        if (onRefresh) onRefresh();
+        onClose();
+    }
+    setPublishing(false);
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
@@ -58,6 +73,23 @@ export default function TripDetailModal({ visible, loading, selectedTripDetail, 
                     {selectedTripDetail.trip.description || 'Khám phá hành trình tuyệt vời này với những trải nghiệm thú vị và điểm đến độc đáo.'}
                   </Text>
                 </View>
+
+                {!selectedTripDetail.trip.isPublished && (
+                  <TouchableOpacity 
+                    style={[styles.publishButton, publishing && styles.publishButtonDisabled]} 
+                    onPress={handlePublish}
+                    disabled={publishing}
+                  >
+                    {publishing ? (
+                      <ActivityIndicator color="#FFF" />
+                    ) : (
+                      <>
+                        <Feather name="globe" size={18} color="#FFF" />
+                        <Text style={styles.publishButtonText}>Publish Plan</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 <View style={styles.modalDivider} />
 
@@ -209,6 +241,31 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     lineHeight: 24,
     fontWeight: '400',
+  },
+  publishButton: {
+    backgroundColor: '#48BB78',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginTop: 16,
+    gap: 8,
+    shadowColor: '#48BB78',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  publishButtonDisabled: {
+    backgroundColor: '#A0AEC0',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  publishButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   modalDivider: {
     height: 1,

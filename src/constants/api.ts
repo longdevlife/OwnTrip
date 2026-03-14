@@ -25,11 +25,15 @@ export const ENDPOINTS = {
     CREATE: '/api/trips',
     UPDATE: (id: string) => `/api/trips/${id}`,
     DELETE: (id: string) => `/api/trips/${id}`,
+    PUBLISH: (id: string) => `/api/trips/${id}/publish`,
   },
   PLACES: {
     SEARCH: '/api/places/search',
     NEARBY: '/api/places/nearby',
     TEXT_SEARCH: '/api/places/text',
     PHOTO: '/api/places/photo',
+  },
+  CHATBOT: {
+    CHAT: '/api/chatbot/chat',
   },
 };
