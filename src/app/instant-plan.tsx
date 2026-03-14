@@ -56,7 +56,7 @@ export default function InstantPlanScreen() {
             <Feather name="star" size={12} color="#FFF" />
             <Text style={styles.aiBadgeText}>AI POWERED</Text>
           </View>
-          <Text style={styles.mainTitle}>What's your plan?</Text>
+          <Text style={styles.mainTitle}>What&apos;s your plan?</Text>
           <Text style={styles.subTitle}>Khởi tạo hành trình trong mơ của bạn chỉ với một chạm</Text>
         </View>
 

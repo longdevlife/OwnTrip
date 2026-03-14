@@ -10,6 +10,9 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="decorations" options={{ title: 'Decoration' }} />
+        <Stack.Screen name="achievement" options={{ title: 'Achievement' }} />
+        <Stack.Screen name="missions" options={{ title: 'Missions' }} />
       </Stack>
     </>
   );
