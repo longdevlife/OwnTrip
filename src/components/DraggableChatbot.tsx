@@ -5,15 +5,16 @@ import {
   Animated,
   PanResponder,
   Dimensions,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import ChatbotModal from './ChatbotModal';
+import { useChatbotSetting } from '../context/ChatbotSettingContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BTN_SIZE = 56;
 
 export default function DraggableChatbot() {
+  const { aiButtonEnabled } = useChatbotSetting();
   const [modalVisible, setModalVisible] = useState(false);
 
   const pos = useRef(new Animated.ValueXY({
@@ -61,6 +62,8 @@ export default function DraggableChatbot() {
       },
     })
   ).current;
+
+  if (!aiButtonEnabled) return null;
 
   return (
     <>

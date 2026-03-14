@@ -15,6 +15,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -27,6 +28,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { userService, UserProfile } from '@/services/userService';
 import { tripService, Trip, TripDetailResponse } from '@/services/tripService';
 import TripDetailModal from '@/components/TripDetailModal';
+import { useChatbotSetting } from '@/context/ChatbotSettingContext';
 
 const { width } = Dimensions.get('window');
 
@@ -70,6 +72,7 @@ export default function ProfileScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedTripDetail, setSelectedTripDetail] = useState<TripDetailResponse | null>(null);
   const [loadingTripDetail, setLoadingTripDetail] = useState(false);
+  const { aiButtonEnabled, setAiButtonEnabled } = useChatbotSetting();
 
   const handleTripPress = async (id: string) => {
     setLoadingTripDetail(true);
@@ -404,6 +407,20 @@ export default function ProfileScreen() {
                 <Text style={styles.settingLabel}>Notifications</Text>
                 <Feather name="chevron-right" size={20} color="#CBD5E0" />
              </TouchableOpacity>
+
+             {/* AI Chatbot Toggle */}
+             <View style={styles.settingItem}>
+                <View style={[styles.settingIcon, { backgroundColor: '#EBF4FF' }]}>
+                  <Feather name="message-square" size={18} color="#4A7CFF" />
+                </View>
+                <Text style={styles.settingLabel}>AI Assistant Button</Text>
+                <Switch
+                  value={aiButtonEnabled}
+                  onValueChange={setAiButtonEnabled}
+                  trackColor={{ false: '#E2E8F0', true: '#BEE3F8' }}
+                  thumbColor={aiButtonEnabled ? '#4A7CFF' : '#A0AEC0'}
+                />
+             </View>
 
              <TouchableOpacity style={styles.settingItem}>
                 <View style={[styles.settingIcon, { backgroundColor: '#EBEEF5' }]}>
