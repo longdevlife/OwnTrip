@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
-  Animated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -128,11 +127,17 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
     );
   };
 
-  // Render swipe right action
-  const renderDeleteAction = () => (
-    <View style={styles.swipeDeleteAction}>
-      <Feather name="trash-2" size={18} color="#FFF" />
-    </View>
+  // Render swipe right action — refined white circle style
+  const renderDeleteAction = (dest: Destination) => (
+    <TouchableOpacity
+      style={styles.swipeDeleteAction}
+      activeOpacity={0.7}
+      onPress={() => handleDeletePlace(dest)}
+    >
+      <View style={styles.swipeDeleteCircle}>
+        <Feather name="trash-2" size={16} color="#EF4444" />
+      </View>
+    </TouchableOpacity>
   );
 
   // Get existing placeIds for the selected day (prevent duplicate add)
@@ -206,7 +211,7 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                         {/* Activity card — swipeable */}
                         <Swipeable
                           ref={(ref) => { swipeableRefs.current[dest.place._id] = ref; }}
-                          renderRightActions={renderDeleteAction}
+                          renderRightActions={() => renderDeleteAction(dest)}
                           rightThreshold={60}
                           overshootRight={false}
                           containerStyle={styles.swipeableContainer}
@@ -217,9 +222,6 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                             openSwipeable.current = dest.place._id;
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                           }}
-                          onSwipeableOpen={() => {
-                            handleDeletePlace(dest);
-                          }}
                         >
                           <TouchableOpacity
                             style={styles.activityCard}
@@ -229,19 +231,6 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                               if (dest.place.mapUrl) Linking.openURL(dest.place.mapUrl);
                             }}
                           >
-                            {/* Thumbnail */}
-                            {hasPhoto ? (
-                              <Image
-                                source={{ uri: dest.place.photo }}
-                                style={styles.activityThumb}
-                                onError={() => handleImageError(dest.place._id)}
-                              />
-                            ) : (
-                              <View style={[styles.activityThumb, styles.activityThumbPlaceholder]}>
-                                <Feather name="map-pin" size={18} color="#D1D5DB" />
-                              </View>
-                            )}
-
                             {/* Info */}
                             <View style={styles.activityInfo}>
                               <Text style={styles.activityName} numberOfLines={1}>
@@ -266,8 +255,18 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                               ) : null}
                             </View>
 
-                            {/* Open map icon */}
-                            <Feather name="external-link" size={14} color="#D1D5DB" />
+                            {/* Thumbnail — right side */}
+                            {hasPhoto ? (
+                              <Image
+                                source={{ uri: dest.place.photo }}
+                                style={styles.activityThumb}
+                                onError={() => handleImageError(dest.place._id)}
+                              />
+                            ) : (
+                              <View style={[styles.activityThumb, styles.activityThumbPlaceholder]}>
+                                <Feather name="map-pin" size={18} color="#D1D5DB" />
+                              </View>
+                            )}
                           </TouchableOpacity>
                         </Swipeable>
                       </View>
@@ -346,7 +345,7 @@ const styles = StyleSheet.create({
   // Empty day
   emptyDay: {
     alignItems: 'center', paddingVertical: 16, gap: 4,
-    marginLeft: 36,
+    marginLeft: 24,
   },
   emptyDayText: { fontSize: 14, fontWeight: '500', color: '#6B7280' },
   emptyDayHint: { fontSize: 12, color: '#9CA3AF' },
@@ -359,12 +358,12 @@ const styles = StyleSheet.create({
 
   // Timeline track (dot + line)
   timelineTrack: {
-    width: 36,
+    width: 24,
     alignItems: 'center',
-    paddingTop: 18,
+    paddingTop: 20,
   },
   timelineDot: {
-    width: 10, height: 10, borderRadius: 5,
+    width: 8, height: 8, borderRadius: 4,
     backgroundColor: BRAND,
     zIndex: 1,
   },
@@ -378,12 +377,21 @@ const styles = StyleSheet.create({
   // Swipeable
   swipeableContainer: { flex: 1, marginBottom: 10 },
   swipeDeleteAction: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
-    width: 60,
+    width: 64,
     borderTopRightRadius: 12,
     borderBottomRightRadius: 12,
+  },
+  swipeDeleteCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#FFF',
+    justifyContent: 'center', alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
+      android: { elevation: 2 },
+    }),
   },
 
   // Activity card
@@ -418,7 +426,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
-    marginLeft: 36,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E5E7EB',
   },

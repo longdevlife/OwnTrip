@@ -170,7 +170,7 @@ export default function AddPlaceModal({
     searchTimeout.current = setTimeout(async () => {
       try {
         setSearching(true);
-        const places = await placesService.search(text.trim());
+        const places = await placesService.searchText({ q: text.trim() });
         setResults(places);
       } catch (e: any) {
         console.warn('Search error:', e?.message);
