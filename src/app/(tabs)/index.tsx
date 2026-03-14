@@ -16,8 +16,10 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { placesService, Place } from '../../services/placesService';
 import { tripService, Trip, TripDetailResponse } from '../../services/tripService';
+import { userService, UserProfile } from '../../services/userService';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function HomeScreen() {
 
   const [selectedTripDetail, setSelectedTripDetail] = useState<TripDetailResponse | null>(null);
   const [loadingTripDetail, setLoadingTripDetail] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const { width } = Dimensions.get('window');
   
@@ -70,8 +73,23 @@ export default function HomeScreen() {
       }
     };
 
+    const fetchUserInfo = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        if (userId) {
+          const profile = await userService.getMyProfile(userId);
+          if (profile) {
+            setUserProfile(profile);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user info in Home:', error);
+      }
+    };
+
     fetchTrending();
     fetchTrips();
+    fetchUserInfo();
   }, [])
   );
 
@@ -95,13 +113,13 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning 👋</Text>
+            <Text style={styles.greeting}>Hi, {userProfile?.displayName || 'User'} 👋</Text>
             <Text style={styles.headerTitle}>Discover</Text>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.pointsBadge}>
               <Feather name="award" size={16} color="#48BB78" />
-              <Text style={styles.pointsText}>2,450</Text>
+              <Text style={styles.pointsText}>{userProfile?.points?.toLocaleString() || '0'}</Text>
             </View>
             <View style={styles.notifButton}>
               <Feather name="bell" size={20} color="#1A2B4A" />
