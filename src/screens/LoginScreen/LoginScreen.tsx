@@ -71,7 +71,10 @@ export default function LoginScreen() {
 
       if (res?.token) {
         await AsyncStorage.setItem('token', res.token);
-        console.log('TOKEN SAVED');
+        if (res.userId) {
+          await AsyncStorage.setItem('userId', res.userId);
+        }
+        console.log('TOKEN & USERID SAVED');
         router.replace('/(tabs)' as any);
       }
     } catch (error) {
@@ -89,9 +92,13 @@ export default function LoginScreen() {
   const handleLoginSuccess = async (data: any) => {
     console.log('Email login success:', data);
     const token = data?.token;
+    const userId = data?.userId;
     if (token) {
       await AsyncStorage.setItem('token', token);
-      console.log('TOKEN SAVED');
+      if (userId) {
+        await AsyncStorage.setItem('userId', userId);
+      }
+      console.log('TOKEN & USERID SAVED');
       router.replace('/(tabs)' as any);
     }
   };

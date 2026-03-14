@@ -14,12 +14,22 @@ export const ENDPOINTS = {
   USERS: {
     PROFILE: '/api/users/me',
     UPDATE: '/api/users/update',
+    MY_PROFILE: (id: string) => `/api/users/myProfile/${id}`,
+    UPDATE_PROFILE: (id: string) => `/api/users/updateProfile/${id}`,
   },
   TRIPS: {
     LIST: '/api/trips',
+    PUBLISHED: '/api/trips/published',
+    MY_TRIPS: '/api/trips/my',
     DETAIL: (id: string) => `/api/trips/${id}`,
     CREATE: '/api/trips',
     UPDATE: (id: string) => `/api/trips/${id}`,
     DELETE: (id: string) => `/api/trips/${id}`,
+  },
+  PLACES: {
+    SEARCH: '/api/places/search',
+    NEARBY: '/api/places/nearby',
+    TEXT_SEARCH: '/api/places/text',
+    PHOTO: '/api/places/photo',
   },
 };
