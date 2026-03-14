@@ -25,7 +25,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 import { userService, UserProfile } from '@/services/userService';
-import { tripService, Trip } from '@/services/tripService';
+import { tripService, Trip, TripDetailResponse } from '@/services/tripService';
+import TripDetailModal from '@/components/TripDetailModal';
 
 const { width } = Dimensions.get('window');
 
@@ -67,6 +68,17 @@ export default function ProfileScreen() {
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newImage, setNewImage] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedTripDetail, setSelectedTripDetail] = useState<TripDetailResponse | null>(null);
+  const [loadingTripDetail, setLoadingTripDetail] = useState(false);
+
+  const handleTripPress = async (id: string) => {
+    setLoadingTripDetail(true);
+    const detail = await tripService.getTripById(id);
+    if (detail) {
+      setSelectedTripDetail(detail);
+    }
+    setLoadingTripDetail(false);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -358,7 +370,7 @@ export default function ProfileScreen() {
           ) : (
             <View style={styles.tripsList}>
               {trips.slice(0, 3).map((trip, index) => (
-                <TouchableOpacity key={index} style={styles.tripItem}>
+                <TouchableOpacity key={index} style={styles.tripItem} onPress={() => handleTripPress(trip._id)}>
                    <Image 
                     source={{ uri: trip.provinceImage || 'https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=800' }} 
                     style={styles.tripImage} 
@@ -483,6 +495,16 @@ export default function ProfileScreen() {
           </KeyboardAvoidingView>
         </BlurView>
       </Modal>
+
+      {/* Trip Detail Modal */}
+      <TripDetailModal
+        visible={!!selectedTripDetail || loadingTripDetail}
+        loading={loadingTripDetail}
+        selectedTripDetail={selectedTripDetail}
+        onClose={() => {
+          if (!loadingTripDetail) setSelectedTripDetail(null);
+        }}
+      />
     </View>
   );
 }
