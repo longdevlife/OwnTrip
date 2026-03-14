@@ -8,7 +8,8 @@ export interface Trip {
   destination: string;
   province: string;
   provinceImage?: string;
-  // Bỏ startDate, endDate theo yêu cầu
+  startDate: string;
+  endDate: string;
   totalDays: number;
   description?: string;
   isPublished: boolean;
@@ -36,6 +37,36 @@ export interface TripDetailResponse {
   success: boolean;
   trip: Trip;
   days: TripDay[];
+}
+
+export interface DestinationPlace {
+  _id: string;
+  dayId: string;
+  placeId: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  rating?: number;
+  photo?: string;
+  mapUrl?: string;
+  order: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Destination {
+  dayId: string;
+  day: number;
+  date: string;
+  place: DestinationPlace;
+}
+
+export interface DestinationsResponse {
+  success: boolean;
+  trip: { _id: string; title: string; destination: string };
+  totalDestinations: number;
+  destinations: Destination[];
 }
 
 export const tripService = {
@@ -80,5 +111,16 @@ export const tripService = {
       console.error('Error fetching my trips:', error);
       return [];
     }
-  }
+  },
+
+  getDestinations: async (tripId: string): Promise<Destination[]> => {
+    try {
+      const url = ENDPOINTS.TRIPS.DESTINATIONS(tripId);
+      const response = await axiosClient.get<any, DestinationsResponse>(url);
+      return response?.destinations ?? [];
+    } catch (error) {
+      console.error(`Error fetching destinations for trip ${tripId}:`, error);
+      return [];
+    }
+  },
 };

@@ -25,6 +25,7 @@ export const ENDPOINTS = {
     CREATE: '/api/trips',
     UPDATE: (id: string) => `/api/trips/${id}`,
     DELETE: (id: string) => `/api/trips/${id}`,
+    DESTINATIONS: (id: string) => `/api/trips/${id}/destinations`,
   },
   PLACES: {
     SEARCH: '/api/places/search',
