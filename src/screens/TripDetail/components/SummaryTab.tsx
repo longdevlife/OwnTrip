@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,15 @@ import {
   Platform,
   ActivityIndicator,
   Linking,
+  Modal,
+  FlatList,
+  Alert,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Trip, TripDay, Destination, tripService } from '@/services/tripService';
+import { accommodationService, Accommodation } from '@/services/accommodationService';
+import StayDatePickerModal from './StayDatePickerModal';
 
 const BRAND = '#4A7CFF';
 const BRAND_LIGHT = '#EBF5FF';
@@ -72,6 +77,16 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
   const [loadingDest, setLoadingDest] = useState(true);
   const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
 
+  // Accommodation state
+  const [hotelModalVisible, setHotelModalVisible] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [hotels, setHotels] = useState<Accommodation[]>([]);
+  const [loadingHotels, setLoadingHotels] = useState(false);
+  const [selectedHotel, setSelectedHotel] = useState<Accommodation | null>(null);
+  const [bookedHotel, setBookedHotel] = useState<Accommodation | null>(null);
+  const [checkInDate, setCheckInDate] = useState<Date | null>(null);
+  const [checkOutDate, setCheckOutDate] = useState<Date | null>(null);
+
   useEffect(() => {
     const fetch = async () => {
       try {
@@ -90,6 +105,65 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
     setImgErrors((prev) => ({ ...prev, [id]: true }));
   };
 
+  // Accommodation handlers
+  const openHotelModal = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setHotelModalVisible(true);
+    setLoadingHotels(true);
+    try {
+      const data = await accommodationService.getAll();
+      setHotels(data);
+    } catch (e) {
+      console.error('Error fetching hotels:', e);
+    } finally {
+      setLoadingHotels(false);
+    }
+  }, []);
+
+  const handleSelectHotel = (hotel: Accommodation) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedHotel(hotel);
+    setHotelModalVisible(false);
+    setTimeout(() => setCalendarVisible(true), 300);
+  };
+
+  const handleDateConfirm = (checkIn: Date, checkOut: Date) => {
+    setCalendarVisible(false);
+    setBookedHotel(selectedHotel);
+    setCheckInDate(checkIn);
+    setCheckOutDate(checkOut);
+    setSelectedHotel(null);
+  };
+
+  const handleRemoveAccommodation = () => {
+    Alert.alert(
+      'Remove Accommodation',
+      `Remove "${bookedHotel?.name}" from this trip?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive',
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setBookedHotel(null);
+            setCheckInDate(null);
+            setCheckOutDate(null);
+          },
+        },
+      ],
+    );
+  };
+
+  const formatCurrency = (amount: number) => amount.toLocaleString('vi-VN') + '₫';
+  const formatShortDate = (d: Date) => {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[d.getMonth()]} ${d.getDate()}`;
+  };
+
+  const nights = checkInDate && checkOutDate
+    ? Math.round((checkOutDate.getTime() - checkInDate.getTime()) / (1000*60*60*24))
+    : 0;
+
   // Group by day for display
   const groupedByDay = destinations.reduce<Record<number, Destination[]>>((acc, dest) => {
     if (!acc[dest.day]) acc[dest.day] = [];
@@ -103,26 +177,64 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
   return (
     <View style={styles.container}>
 
-      {/* ===== 1. ACCOMMODATION (first, like reference) ===== */}
+      {/* ===== 1. ACCOMMODATION ===== */}
       <View style={styles.card}>
-        <SectionHeader icon="home" title="Accommodation" />
+        <SectionHeader
+          icon="home"
+          title="Accommodation"
+          right={bookedHotel ? (
+            <TouchableOpacity onPress={handleRemoveAccommodation} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Feather name="trash-2" size={16} color="#EF4444" />
+            </TouchableOpacity>
+          ) : undefined}
+        />
 
-        {/* TODO: khi có accommodation API, hiển thị card với ảnh + tên + giá */}
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIcon}>
-            <Feather name="home" size={24} color="#D1D5DB" />
+        {bookedHotel && checkInDate && checkOutDate ? (
+          /* Booked hotel card */
+          <View style={styles.bookedCard}>
+            {bookedHotel.images && !imgErrors[`hotel-${bookedHotel.id}`] ? (
+              <Image
+                source={{ uri: bookedHotel.images }}
+                style={styles.bookedImage}
+                onError={() => handleImageError(`hotel-${bookedHotel.id}`)}
+              />
+            ) : (
+              <View style={[styles.bookedImage, styles.bookedImagePlaceholder]}>
+                <Feather name="home" size={24} color="#D1D5DB" />
+              </View>
+            )}
+            <View style={styles.bookedInfo}>
+              <Text style={styles.bookedName} numberOfLines={1}>{bookedHotel.name}</Text>
+              <View style={styles.bookedDates}>
+                <Feather name="calendar" size={12} color="#9CA3AF" />
+                <Text style={styles.bookedDateText}>
+                  {formatShortDate(checkInDate)} → {formatShortDate(checkOutDate)}
+                </Text>
+              </View>
+              <View style={styles.bookedBottom}>
+                <Text style={styles.bookedNights}>{nights} night{nights > 1 ? 's' : ''}</Text>
+                <Text style={styles.bookedTotal}>{formatCurrency(nights * bookedHotel.pricePerNight)}</Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.emptyTitle}>No accommodation yet</Text>
-          <Text style={styles.emptyHint}>Add your hotel, resort or homestay</Text>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            activeOpacity={0.7}
-            onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-          >
-            <Feather name="plus" size={14} color="#FFF" />
-            <Text style={styles.actionBtnText}>Add Accommodation</Text>
-          </TouchableOpacity>
-        </View>
+        ) : (
+          /* Empty state */
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Feather name="home" size={24} color="#D1D5DB" />
+            </View>
+            <Text style={styles.emptyTitle}>No accommodation yet</Text>
+            <Text style={styles.emptyHint}>Add your hotel, resort or homestay</Text>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              activeOpacity={0.7}
+              onPress={openHotelModal}
+            >
+              <Feather name="plus" size={14} color="#FFF" />
+              <Text style={styles.actionBtnText}>Add Accommodation</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* ===== 2. PLACES TO VISIT ===== */}
@@ -293,6 +405,101 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
           </View>
         )}
       </View>
+
+      {/* ===== HOTEL LIST MODAL ===== */}
+      <Modal visible={hotelModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHandleBar}><View style={styles.modalHandle} /></View>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Choose Accommodation</Text>
+            <TouchableOpacity onPress={() => setHotelModalVisible(false)}>
+              <Feather name="x" size={22} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          {loadingHotels ? (
+            <View style={styles.modalLoading}>
+              <ActivityIndicator size="large" color={BRAND} />
+              <Text style={styles.modalLoadingText}>Finding hotels...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={hotels}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.hotelList}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const hasImg = item.images && !imgErrors[`modal-${item.id}`];
+                const chips = item.amenities?.slice(0, 3) ?? [];
+                const extra = (item.amenities?.length ?? 0) - 3;
+                return (
+                  <TouchableOpacity
+                    style={styles.hotelCard}
+                    activeOpacity={0.85}
+                    onPress={() => handleSelectHotel(item)}
+                  >
+                    <View style={styles.hotelImageWrap}>
+                      {hasImg ? (
+                        <Image
+                          source={{ uri: item.images }}
+                          style={styles.hotelImage}
+                          onError={() => handleImageError(`modal-${item.id}`)}
+                        />
+                      ) : (
+                        <View style={[styles.hotelImage, styles.hotelImagePlaceholder]}>
+                          <Feather name="image" size={28} color="#D1D5DB" />
+                        </View>
+                      )}
+                      {item.rating > 0 && (
+                        <View style={styles.hotelRatingBadge}>
+                          <Feather name="star" size={11} color="#FFF" />
+                          <Text style={styles.hotelRatingVal}>{item.rating.toFixed(1)}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.hotelInfo}>
+                      <Text style={styles.hotelName} numberOfLines={1}>{item.name}</Text>
+                      <View style={styles.hotelAddrRow}>
+                        <Feather name="map-pin" size={11} color="#9CA3AF" />
+                        <Text style={styles.hotelAddr} numberOfLines={1}>{item.address}</Text>
+                      </View>
+                      {chips.length > 0 && (
+                        <View style={styles.hotelChips}>
+                          {chips.map((a, i) => (
+                            <View key={i} style={styles.hotelChip}>
+                              <Text style={styles.hotelChipText}>{a}</Text>
+                            </View>
+                          ))}
+                          {extra > 0 && <Text style={styles.hotelChipMore}>+{extra}</Text>}
+                        </View>
+                      )}
+                      <Text style={styles.hotelPrice}>{formatCurrency(item.pricePerNight)}<Text style={styles.hotelPriceUnit}>/night</Text></Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.modalLoading}>
+                  <Feather name="home" size={44} color="#D1D5DB" />
+                  <Text style={styles.modalLoadingText}>No accommodations found</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* ===== CALENDAR MODAL ===== */}
+      {selectedHotel && (
+        <StayDatePickerModal
+          visible={calendarVisible}
+          onClose={() => { setCalendarVisible(false); setSelectedHotel(null); }}
+          hotelName={selectedHotel.name}
+          tripStartDate={trip.startDate}
+          tripEndDate={trip.endDate}
+          onConfirm={handleDateConfirm}
+        />
+      )}
     </View>
   );
 }
@@ -434,4 +641,72 @@ const styles = StyleSheet.create({
   budgetValue: { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
   budgetBarBg: { height: 5, borderRadius: 3, backgroundColor: '#F3F4F6' },
   budgetBarFill: { height: 5, borderRadius: 3, backgroundColor: BRAND },
+
+  // Booked accommodation card
+  bookedCard: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  bookedImage: {
+    width: 80, height: 80,
+  },
+  bookedImagePlaceholder: {
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  bookedInfo: {
+    flex: 1, padding: 10, gap: 4, justifyContent: 'center',
+  },
+  bookedName: { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
+  bookedDates: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  bookedDateText: { fontSize: 12, color: '#6B7280' },
+  bookedBottom: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  bookedNights: { fontSize: 11, fontWeight: '500', color: '#9CA3AF' },
+  bookedTotal: { fontSize: 14, fontWeight: '800', color: BRAND },
+
+  // Modal
+  modalContainer: { flex: 1, backgroundColor: '#FFF' },
+  modalHandleBar: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB' },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 12,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
+  modalLoading: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingVertical: 80,
+  },
+  modalLoadingText: { fontSize: 14, color: '#9CA3AF' },
+
+  // Hotel cards in modal
+  hotelList: { paddingHorizontal: 16, paddingBottom: 24, gap: 16 },
+  hotelCard: {
+    backgroundColor: '#FFF', borderRadius: 16, overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 16 },
+      android: { elevation: 4 },
+    }),
+  },
+  hotelImageWrap: { position: 'relative' },
+  hotelImage: { width: '100%', height: 180, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+  hotelImagePlaceholder: { backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  hotelRatingBadge: {
+    position: 'absolute', left: 12, bottom: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+  },
+  hotelRatingVal: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  hotelInfo: { padding: 14, paddingTop: 10, gap: 5 },
+  hotelName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  hotelAddrRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  hotelAddr: { fontSize: 12, color: '#6B7280', flex: 1 },
+  hotelChips: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hotelChip: { backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  hotelChipText: { fontSize: 11, fontWeight: '500', color: '#6B7280' },
+  hotelChipMore: { fontSize: 11, fontWeight: '600', color: '#9CA3AF' },
+  hotelPrice: { fontSize: 17, fontWeight: '800', color: BRAND },
+  hotelPriceUnit: { fontSize: 12, fontWeight: '500', color: '#9CA3AF' },
 });

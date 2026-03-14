@@ -115,7 +115,7 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
             setDestinations((prev) => prev.filter((d) => d.place._id !== dest.place._id));
 
             try {
-              await tripService.removePlaceFromDay(dest.dayId, dest.place.placeId);
+              await tripService.removePlaceFromDay(dest.dayId, dest.place._id);
             } catch (error: any) {
               setDestinations(backup);
               const msg = error?.response?.data?.message || 'Failed to remove place';
