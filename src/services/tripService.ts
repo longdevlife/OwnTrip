@@ -19,9 +19,21 @@ export interface Trip {
 }
 
 export interface TripDay {
+  dayId: string;
   day: number;
   date: string;
-  places: any[]; // Bạn có thể định nghĩa type Place chi tiết sau nếu cần
+  places: DestinationPlace[];
+}
+
+export interface AddPlaceBody {
+  placeId: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  rating?: number;
+  photo?: string;
+  mapUrl?: string;
 }
 
 export interface TripsResponse {
@@ -121,6 +133,28 @@ export const tripService = {
     } catch (error) {
       console.error(`Error fetching destinations for trip ${tripId}:`, error);
       return [];
+    }
+  },
+
+  addPlaceToDay: async (dayId: string, placeData: AddPlaceBody): Promise<any> => {
+    try {
+      const url = ENDPOINTS.PLANS.ADD_PLACE(dayId);
+      const response = await axiosClient.post(url, placeData);
+      return response;
+    } catch (error) {
+      console.error(`Error adding place to day ${dayId}:`, error);
+      throw error;
+    }
+  },
+
+  removePlaceFromDay: async (dayId: string, placeId: string): Promise<any> => {
+    try {
+      const url = ENDPOINTS.PLANS.REMOVE_PLACE(dayId, placeId);
+      const response = await axiosClient.delete(url);
+      return response;
+    } catch (error) {
+      console.error(`Error removing place from day ${dayId}:`, error);
+      throw error;
     }
   },
 };

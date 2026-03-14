@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { tripService, Trip, TripDay } from '@/services/tripService';
 import SummaryTab from './components/SummaryTab';
+import ItineraryTab from './components/ItineraryTab';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -134,6 +135,7 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
       case 'summary':
         return <SummaryTab trip={trip} days={days} />;
       case 'itinerary':
+        return <ItineraryTab trip={trip} days={days} />;
       case 'explore':
       case 'journal':
         return (

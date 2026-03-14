@@ -51,8 +51,8 @@ export const placesService = {
       const response = await axiosClient.get<any, PlacesResponse>(url);
 
       return response?.places ?? [];
-    } catch (error) {
-      console.error('Error fetching trending places. Using mock data:', error);
+    } catch {
+      console.warn('⚠️ Trending API unavailable, using fallback data');
       // Fallback data
       return [
         {

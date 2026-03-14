@@ -33,4 +33,8 @@ export const ENDPOINTS = {
     TEXT_SEARCH: '/api/places/text',
     PHOTO: '/api/places/photo',
   },
+  PLANS: {
+    ADD_PLACE: (dayId: string) => `/api/plans/day/${dayId}/place`,
+    REMOVE_PLACE: (dayId: string, placeId: string) => `/api/plans/day/${dayId}/place/${placeId}`,
+  },
 };
