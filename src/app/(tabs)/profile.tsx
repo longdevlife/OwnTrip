@@ -351,9 +351,6 @@ export default function ProfileScreen() {
           {/* Trips Section */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>My Trips</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/trips')}>
-              <Text style={styles.viewAll}>View All</Text>
-            </TouchableOpacity>
           </View>
 
           {trips.length === 0 ? (
@@ -504,6 +501,7 @@ export default function ProfileScreen() {
         onClose={() => {
           if (!loadingTripDetail) setSelectedTripDetail(null);
         }}
+        onRefresh={loadData}
       />
     </View>
   );

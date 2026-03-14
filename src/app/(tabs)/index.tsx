@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
   Linking,
   Animated,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { placesService, Place } from '../../services/placesService';
@@ -42,8 +42,9 @@ export default function HomeScreen() {
   const ITEM_SIZE = ITEM_WIDTH + ITEM_SPACING;
   const SPACER_SIZE = (width - ITEM_WIDTH) / 2;
 
-  useEffect(() => {
-    const fetchTrending = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      const fetchTrending = async () => {
       try {
         setLoading(true);
         const places = await placesService.searchTrending();
@@ -71,7 +72,8 @@ export default function HomeScreen() {
 
     fetchTrending();
     fetchTrips();
-  }, []);
+  }, [])
+  );
 
   const handleTripPress = async (id: string) => {
     setLoadingTripDetail(true);
@@ -1086,5 +1088,22 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     paddingLeft: 46,
     fontWeight: '500',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 90, 
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#4A7CFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4A7CFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+    zIndex: 9999,
   },
 });
