@@ -6,6 +6,7 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  ImageBackground,
   TouchableOpacity,
   ActivityIndicator,
   Modal,
@@ -135,17 +136,23 @@ export default function HomeScreen() {
         </View>
 
         {/* Banner */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>Where to{'\n'}next?</Text>
-          <Text style={styles.bannerSubtitle}>Instantly generate a personalized dream trip.</Text>
-          <TouchableOpacity 
-            style={styles.bannerButton}
-            onPress={() => router.push('/instant-plan')}
-          >
-            <Feather name="zap" size={16} color="#FFFFFF" />
-            <Text style={styles.bannerButtonText}>Instant Plan</Text>
-          </TouchableOpacity>
-        </View>
+        <ImageBackground 
+          source={{ uri: 'https://logico.com.vn/upload_images/images/2022/11/30/hinh-nen-dep-7.jpg' }}
+          style={styles.banner}
+          imageStyle={styles.bannerImage}
+        >
+          <View style={styles.bannerOverlay}>
+            <Text style={styles.bannerTitle}>Where to{'\n'}next?</Text>
+            <Text style={styles.bannerSubtitle}>Instantly generate a personalized dream trip.</Text>
+            <TouchableOpacity 
+              style={styles.bannerButton}
+              onPress={() => router.push('/instant-plan')}
+            >
+              <Feather name="zap" size={16} color="#FFFFFF" />
+              <Text style={styles.bannerButtonText}>Instant Plan</Text>
+            </TouchableOpacity>
+          </View>
+        </ImageBackground>
 
         {/* Trending Now */}
         <View style={styles.sectionHeader}>
@@ -590,13 +597,19 @@ const styles = StyleSheet.create({
 
   // Banner
   banner: {
-    backgroundColor: '#1A2B4A',
     borderRadius: 20,
-    padding: 24,
     marginBottom: 24,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    resizeMode: 'cover',
+  },
+  bannerOverlay: {
+    backgroundColor: 'rgba(26, 43, 74, 0.65)',
+    padding: 24,
   },
   bannerTitle: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
-  bannerSubtitle: { fontSize: 14, color: '#CBD5E0', marginBottom: 16, lineHeight: 20 },
+  bannerSubtitle: { fontSize: 14, color: '#FFFFFF', marginBottom: 16, lineHeight: 20, fontWeight: '500' },
   bannerButton: {
     flexDirection: 'row',
     alignItems: 'center',
