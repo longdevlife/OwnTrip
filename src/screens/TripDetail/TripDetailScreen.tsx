@@ -132,24 +132,26 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
   }
 
   const renderTabContent = () => {
-    switch (activeTab) {
-      case 'summary':
-        return <SummaryTab trip={trip} days={days} />;
-      case 'itinerary':
-        return <ItineraryTab trip={trip} days={days} />;
-      case 'explore':
-        return <ExploreTab trip={trip} days={days} />;
-      case 'journal':
-        return (
+    return (
+      <>
+        <View style={{ display: activeTab === 'summary' ? 'flex' : 'none' }}>
+          <SummaryTab trip={trip} days={days} />
+        </View>
+        <View style={{ display: activeTab === 'itinerary' ? 'flex' : 'none' }}>
+          <ItineraryTab trip={trip} days={days} />
+        </View>
+        <View style={{ display: activeTab === 'explore' ? 'flex' : 'none' }}>
+          <ExploreTab trip={trip} days={days} />
+        </View>
+        <View style={{ display: activeTab === 'journal' ? 'flex' : 'none' }}>
           <View style={styles.comingSoonContainer}>
-            <Feather name={TABS.find(t => t.key === activeTab)?.icon || 'grid'} size={44} color="#D1D5DB" />
-            <Text style={styles.comingSoonTitle}>{TABS.find(t => t.key === activeTab)?.label}</Text>
+            <Feather name="book-open" size={44} color="#D1D5DB" />
+            <Text style={styles.comingSoonTitle}>Journal</Text>
             <Text style={styles.comingSoonText}>Coming soon...</Text>
           </View>
-        );
-      default:
-        return null;
-    }
+        </View>
+      </>
+    );
   };
 
   return (

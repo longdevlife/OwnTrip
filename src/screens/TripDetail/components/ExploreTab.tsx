@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { placesService, Place } from '@/services/placesService';
 import { Trip, TripDay, tripService, AddPlaceBody } from '@/services/tripService';
 
@@ -27,35 +28,17 @@ interface Category {
   key: string;
   label: string;
   emoji: string;
-  apiType: string;           // what to send to API
-  matchTypes: string[];       // client-side filter: place.types must include one of these
+  apiType: string;  // sent to API as `type` param
 }
 
 const CATEGORIES: Category[] = [
-  {
-    key: 'all', label: 'All', emoji: '📍', apiType: 'restaurant,cafe,lodging,tourist_attraction',
-    matchTypes: [],
-  },
-  {
-    key: 'restaurant', label: 'Restaurants', emoji: '🍽️', apiType: 'restaurant',
-    matchTypes: ['restaurant', 'food', 'meal_delivery', 'meal_takeaway'],
-  },
-  {
-    key: 'cafe', label: 'Cafés', emoji: '☕', apiType: 'cafe',
-    matchTypes: ['cafe', 'coffee', 'bakery'],
-  },
-  {
-    key: 'attraction', label: 'Attractions', emoji: '🏛️', apiType: 'tourist_attraction',
-    matchTypes: ['tourist_attraction', 'museum', 'park', 'temple', 'church', 'monument', 'historic', 'artwork', 'place_of_worship', 'reservoir'],
-  },
-  {
-    key: 'lodging', label: 'Hotels', emoji: '🏨', apiType: 'lodging',
-    matchTypes: ['lodging', 'hotel', 'resort', 'motel', 'hostel'],
-  },
-  {
-    key: 'shopping', label: 'Shopping', emoji: '🛍️', apiType: 'shopping_mall',
-    matchTypes: ['shopping_mall', 'store', 'shop', 'market', 'shopping'],
-  },
+  { key: 'all', label: 'All', emoji: '📍', apiType: '' },
+  { key: 'restaurant', label: 'Restaurants', emoji: '🍽️', apiType: 'restaurant' },
+  { key: 'cafe', label: 'Cafés', emoji: '☕', apiType: 'cafe' },
+  { key: 'attraction', label: 'Attractions', emoji: '🏛️', apiType: 'tourist_attraction' },
+  { key: 'lodging', label: 'Hotels', emoji: '🏨', apiType: 'lodging' },
+  { key: 'shopping', label: 'Shopping', emoji: '🛍️', apiType: 'shopping_mall' },
+  { key: 'nightlife', label: 'Nightlife', emoji: '🌙', apiType: 'bar' },
 ];
 
 /* ─── Helpers ─── */
@@ -73,11 +56,11 @@ interface ExploreTabProps {
 
 export default function ExploreTab({ trip, days }: ExploreTabProps) {
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [allPlaces, setAllPlaces] = useState<Place[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [savedPlaces, setSavedPlaces] = useState<Set<string>>(new Set());
+  const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
 
@@ -87,6 +70,10 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
   const [addingToDay, setAddingToDay] = useState<string | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const STORAGE_KEY = `explore_saved_${trip._id}`;
+
+  /* ─── Saved place IDs for quick lookup ─── */
+  const savedPlaceIds = useMemo(() => new Set(savedPlaces.map(p => p.placeId)), [savedPlaces]);
 
   /* ─── Already-added place IDs (to mark them) ─── */
   const addedPlaceIds = useMemo(() => {
@@ -98,6 +85,18 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
     }
     return ids;
   }, [days]);
+
+  /* ─── Load saved places from AsyncStorage ─── */
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) setSavedPlaces(JSON.parse(stored));
+      } catch {
+        console.warn('Failed to load saved places');
+      }
+    })();
+  }, [STORAGE_KEY]);
 
   /* ─── Extract coordinates from trip data ─── */
   useEffect(() => {
@@ -125,13 +124,14 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
     })();
   }, [days, trip.destination, trip.province]);
 
-  /* ─── Fetch places ─── */
-  const fetchPlaces = useCallback(async (query?: string) => {
+  /* ─── Fetch places (per-category API call) ─── */
+  const fetchPlaces = useCallback(async (category?: string, query?: string) => {
     if (!coords) return;
     setLoading(true);
     try {
       let result: Place[];
       if (query && query.trim().length > 0) {
+        // Text search with location bias
         result = await placesService.searchText({
           q: query,
           lat: coords.lat,
@@ -140,64 +140,42 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
           limit: 30,
         });
       } else {
-        // Fetch broad results, filter client-side
+        // Category-specific API call
+        const cat = CATEGORIES.find(c => c.key === (category || activeCategory));
+        const typeParam = cat?.apiType || '';
         result = await placesService.searchNearby({
           lat: coords.lat,
           lng: coords.lng,
           radius: 5000,
-          type: 'restaurant,cafe,lodging,tourist_attraction',
+          ...(typeParam ? { type: typeParam } : {}),
         });
       }
-      setAllPlaces(result);
+      setPlaces(result);
     } catch (error) {
       console.error('Error fetching explore places:', error);
-      setAllPlaces([]);
+      setPlaces([]);
     } finally {
       setLoading(false);
     }
-  }, [coords]);
+  }, [coords, activeCategory]);
 
-  /* ─── Client-side filtered places ─── */
-  const filteredPlaces = useMemo(() => {
-    if (activeCategory === 'all') return allPlaces;
-    const cat = CATEGORIES.find(c => c.key === activeCategory);
-    if (!cat || cat.matchTypes.length === 0) return allPlaces;
-
-    return allPlaces.filter(place => {
-      if (!place.types || place.types.length === 0) return false;
-      return place.types.some(t =>
-        cat.matchTypes.some(mt => t.toLowerCase().includes(mt.toLowerCase()))
-      );
-    });
-  }, [allPlaces, activeCategory]);
-
-  /* ─── Category counts ─── */
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: allPlaces.length };
-    for (const cat of CATEGORIES) {
-      if (cat.key === 'all') continue;
-      counts[cat.key] = allPlaces.filter(place =>
-        place.types?.some(t =>
-          cat.matchTypes.some(mt => t.toLowerCase().includes(mt.toLowerCase()))
-        )
-      ).length;
-    }
-    return counts;
-  }, [allPlaces]);
-
-  /* ─── Auto-fetch on coords change ─── */
+  /* ─── Auto-fetch on coords/category change ─── */
   useEffect(() => {
-    if (coords) fetchPlaces();
-  }, [coords, fetchPlaces]);
+    if (coords) fetchPlaces(activeCategory);
+  }, [coords, activeCategory, fetchPlaces]);
 
   /* ─── Debounced search ─── */
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchPlaces(text.trim().length > 0 ? text : undefined);
+      if (text.trim().length > 0) {
+        fetchPlaces(activeCategory, text);
+      } else {
+        fetchPlaces(activeCategory);
+      }
     }, 500);
-  }, [fetchPlaces]);
+  }, [fetchPlaces, activeCategory]);
 
   /* ─── Category select ─── */
   const handleCategoryPress = useCallback((key: string) => {
@@ -205,16 +183,18 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
     setActiveCategory(key);
   }, []);
 
-  /* ─── Bookmark toggle ─── */
-  const toggleSave = useCallback((placeId: string) => {
+  /* ─── Bookmark toggle (persist to AsyncStorage) ─── */
+  const toggleSave = useCallback((place: Place) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSavedPlaces(prev => {
-      const next = new Set(prev);
-      if (next.has(placeId)) next.delete(placeId);
-      else next.add(placeId);
+      const exists = prev.some(p => p.placeId === place.placeId);
+      const next = exists
+        ? prev.filter(p => p.placeId !== place.placeId)
+        : [...prev, place];
+      AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)).catch(() => {});
       return next;
     });
-  }, []);
+  }, [STORAGE_KEY]);
 
   /* ─── Add to trip ─── */
   const handleAddToTrip = useCallback((place: Place) => {
@@ -242,7 +222,7 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
       Alert.alert('Added! ✅', `${selectedPlace.name} has been added to your itinerary.`);
       setShowDayPicker(false);
       setSelectedPlace(null);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to add place. Please try again.');
     } finally {
       setAddingToDay(null);
@@ -252,9 +232,9 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
   /* ─── Pull to refresh ─── */
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchPlaces(searchQuery || undefined);
+    await fetchPlaces(activeCategory, searchQuery || undefined);
     setRefreshing(false);
-  }, [fetchPlaces, searchQuery]);
+  }, [fetchPlaces, activeCategory, searchQuery]);
 
   /* ─── Image error ─── */
   const handleImageError = useCallback((id: string) => {
@@ -265,14 +245,14 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
   const sectionTitle = useMemo(() => {
     if (searchQuery.trim().length > 0) return `Results for "${searchQuery}"`;
     const cat = CATEGORIES.find(c => c.key === activeCategory);
-    const count = filteredPlaces.length;
+    const count = places.length;
     return `${cat?.emoji || '📍'} ${count} ${cat?.label || 'Places'} near ${trip.destination || trip.province}`;
-  }, [searchQuery, activeCategory, trip.destination, trip.province, filteredPlaces.length]);
+  }, [searchQuery, activeCategory, trip.destination, trip.province, places.length]);
 
   /* ─── Render Place Card ─── */
   const renderPlaceCard = useCallback(({ item }: { item: Place }) => {
     const hasPhoto = item.photo && !failedImages.has(item.placeId);
-    const isSaved = savedPlaces.has(item.placeId);
+    const isSaved = savedPlaceIds.has(item.placeId);
     const isAdded = addedPlaceIds.has(item.placeId);
 
     return (
@@ -330,7 +310,7 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
             )}
 
             <TouchableOpacity
-              onPress={() => toggleSave(item.placeId)}
+              onPress={() => toggleSave(item)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Feather
@@ -343,7 +323,7 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
         </View>
       </View>
     );
-  }, [failedImages, savedPlaces, addedPlaceIds, toggleSave, handleImageError, handleAddToTrip]);
+  }, [failedImages, savedPlaceIds, addedPlaceIds, toggleSave, handleImageError, handleAddToTrip]);
 
   /* ─── Empty state ─── */
   const renderEmpty = () => {
@@ -359,9 +339,58 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
     );
   };
 
-  /* ─── Header (search + categories) ─── */
+  /* ─── Header (saved places + search + categories) ─── */
   const renderListHeader = () => (
     <View>
+      {/* ═══ Saved Places Section ═══ */}
+      {savedPlaces.length > 0 && (
+        <View style={styles.savedSection}>
+          <View style={styles.savedHeader}>
+            <View style={styles.savedTitleRow}>
+              <Feather name="bookmark" size={16} color={BRAND} />
+              <Text style={styles.savedTitle}>Saved Places</Text>
+              <View style={styles.savedCount}>
+                <Text style={styles.savedCountText}>{savedPlaces.length}</Text>
+              </View>
+            </View>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.savedList}
+          >
+            {savedPlaces.map(place => {
+              const hasImg = place.photo && !failedImages.has(place.placeId);
+              return (
+                <View key={place.placeId} style={styles.savedCard}>
+                  {/* Remove btn */}
+                  <TouchableOpacity
+                    style={styles.savedRemoveBtn}
+                    onPress={() => toggleSave(place)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="x" size={12} color="#6B7280" />
+                  </TouchableOpacity>
+                  {hasImg ? (
+                    <Image source={{ uri: place.photo! }} style={styles.savedImage} />
+                  ) : (
+                    <View style={[styles.savedImage, styles.savedImagePlaceholder]}>
+                      <Feather name="map-pin" size={18} color="#D1D5DB" />
+                    </View>
+                  )}
+                  <Text style={styles.savedName} numberOfLines={2}>{place.name}</Text>
+                  {(place.rating ?? 0) > 0 && (
+                    <View style={styles.savedRating}>
+                      <Feather name="star" size={10} color="#F59E0B" />
+                      <Text style={styles.savedRatingText}>{place.rating!.toFixed(1)}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
       {/* Search bar */}
       <View style={styles.searchContainer}>
         <Feather name="search" size={18} color="#9CA3AF" />
@@ -389,7 +418,6 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
       >
         {CATEGORIES.map(cat => {
           const isActive = cat.key === activeCategory;
-          const count = categoryCounts[cat.key] ?? 0;
           return (
             <TouchableOpacity
               key={cat.key}
@@ -401,11 +429,6 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
               <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>
                 {cat.label}
               </Text>
-              {!loading && cat.key !== 'all' && (
-                <View style={[styles.countBadge, isActive && styles.countBadgeActive]}>
-                  <Text style={[styles.countText, isActive && styles.countTextActive]}>{count}</Text>
-                </View>
-              )}
             </TouchableOpacity>
           );
         })}
@@ -440,7 +463,7 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
   return (
     <>
       <FlatList
-        data={loading ? [] : filteredPlaces}
+        data={loading ? [] : places}
         keyExtractor={item => item.placeId}
         renderItem={renderPlaceCard}
         ListHeaderComponent={renderListHeader}
@@ -544,14 +567,6 @@ const styles = StyleSheet.create({
   categoryEmoji: { fontSize: 15 },
   categoryLabel: { fontSize: 13, fontWeight: '600', color: '#4B5563' },
   categoryLabelActive: { color: '#FFFFFF' },
-  countBadge: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 6, paddingVertical: 1,
-    borderRadius: 8, minWidth: 20, alignItems: 'center',
-  },
-  countBadgeActive: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  countText: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
-  countTextActive: { color: '#FFF' },
 
   /* ── Section header ── */
   sectionTitle: {
@@ -689,4 +704,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelBtnText: { fontSize: 15, fontWeight: '600', color: '#6B7280' },
+
+  /* ── Saved Places Section ── */
+  savedSection: {
+    marginTop: 16, marginBottom: 4,
+  },
+  savedHeader: {
+    paddingHorizontal: 16, marginBottom: 12,
+  },
+  savedTitleRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  savedTitle: {
+    fontSize: 16, fontWeight: '700', color: '#1A1A1A',
+  },
+  savedCount: {
+    backgroundColor: BRAND, borderRadius: 10,
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  savedCountText: {
+    fontSize: 11, fontWeight: '700', color: '#FFF',
+  },
+  savedList: {
+    paddingHorizontal: 16, gap: 12,
+  },
+  savedCard: {
+    width: 120, alignItems: 'center',
+    backgroundColor: '#FFF', borderRadius: 14,
+    padding: 10, borderWidth: 1, borderColor: '#F3F4F6',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+      android: { elevation: 1 },
+    }),
+  },
+  savedRemoveBtn: {
+    position: 'absolute', top: 6, right: 6, zIndex: 1,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  savedImage: {
+    width: 60, height: 60, borderRadius: 12,
+    marginBottom: 6,
+  },
+  savedImagePlaceholder: {
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  savedName: {
+    fontSize: 12, fontWeight: '600', color: '#1A1A1A',
+    textAlign: 'center', lineHeight: 16,
+  },
+  savedRating: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    marginTop: 4,
+  },
+  savedRatingText: {
+    fontSize: 11, fontWeight: '600', color: '#F59E0B',
+  },
 });

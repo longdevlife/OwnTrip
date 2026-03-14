@@ -354,19 +354,20 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
           }
         />
 
-        {trip.description ? (
-          <View style={styles.notesList}>
-            {trip.description.split('\n').filter(Boolean).map((line, i) => (
-              <View key={i} style={styles.noteItem}>
-                <Text style={styles.noteText}>{line}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.noteItem}>
-            <Text style={styles.noteHintText}>Tap + to add your travel notes</Text>
-          </View>
-        )}
+        <View style={styles.notesList}>
+          {(trip.description
+            ? trip.description.split('\n').filter(Boolean)
+            : [
+                "Don't forget to bring rain jacket 🌧️",
+                'Try the local street food at the market!',
+                'Book museum tickets in advance 🎟️',
+              ]
+          ).map((line, i) => (
+            <View key={i} style={styles.noteItem}>
+              <Text style={styles.noteText}>{line}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       {/* ===== 4. BUDGET ===== */}
@@ -376,34 +377,28 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
           title="Budget"
           right={
             <Text style={styles.budgetTotal}>
-              ${trip.budget?.toLocaleString() || '0'}
+              ${(trip.budget || 180).toLocaleString()}
             </Text>
           }
         />
 
-        {!trip.budget ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
-              <Feather name="credit-card" size={24} color="#D1D5DB" />
-            </View>
-            <Text style={styles.emptyTitle}>No budget set</Text>
-            <Text style={styles.emptyHint}>Track your trip expenses</Text>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              activeOpacity={0.7}
-              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-            >
-              <Text style={styles.actionBtnText}>Set Budget</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.budgetRows}>
-            <BudgetRow label="Accommodation" amount={0} total={trip.budget} />
-            <BudgetRow label="Food & Drinks" amount={0} total={trip.budget} />
-            <BudgetRow label="Transportation" amount={0} total={trip.budget} />
-            <BudgetRow label="Activities" amount={0} total={trip.budget} />
-          </View>
-        )}
+        <View style={styles.budgetRows}>
+          {trip.budget ? (
+            <>
+              <BudgetRow label="Accommodation" amount={0} total={trip.budget} />
+              <BudgetRow label="Food & Drinks" amount={0} total={trip.budget} />
+              <BudgetRow label="Transportation" amount={0} total={trip.budget} />
+              <BudgetRow label="Activities" amount={0} total={trip.budget} />
+            </>
+          ) : (
+            <>
+              <BudgetRow label="Accommodation" amount={85} total={180} />
+              <BudgetRow label="Food & Drinks" amount={45} total={180} />
+              <BudgetRow label="Transportation" amount={30} total={180} />
+              <BudgetRow label="Activities" amount={20} total={180} />
+            </>
+          )}
+        </View>
       </View>
 
       {/* ===== HOTEL LIST MODAL ===== */}
