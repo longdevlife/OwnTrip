@@ -21,7 +21,7 @@ import { placesService, Place } from '@/services/placesService';
 import { Trip, TripDay, tripService, AddPlaceBody } from '@/services/tripService';
 
 /* ─── Brand ─── */
-const BRAND = '#4A90E2';
+const BRAND = '#4A7CFF';
 
 /* ─── Categories ─── */
 interface Category {

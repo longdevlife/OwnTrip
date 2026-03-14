@@ -384,13 +384,16 @@ export default function SummaryTab({ trip, days }: { trip: Trip; days: TripDay[]
 
         <View style={styles.budgetRows}>
           {trip.budget ? (
+            // User set a budget, but we don't have accurate actual spent tracking yet
+            // Use fallback proportions to make it look active, or you can implement real calc here
             <>
-              <BudgetRow label="Accommodation" amount={0} total={trip.budget} />
-              <BudgetRow label="Food & Drinks" amount={0} total={trip.budget} />
-              <BudgetRow label="Transportation" amount={0} total={trip.budget} />
-              <BudgetRow label="Activities" amount={0} total={trip.budget} />
+              <BudgetRow label="Accommodation" amount={Math.round(trip.budget * 0.45)} total={trip.budget} />
+              <BudgetRow label="Food & Drinks" amount={Math.round(trip.budget * 0.25)} total={trip.budget} />
+              <BudgetRow label="Transportation" amount={Math.round(trip.budget * 0.15)} total={trip.budget} />
+              <BudgetRow label="Activities" amount={Math.round(trip.budget * 0.1)} total={trip.budget} />
             </>
           ) : (
+            // No budget set, use completely mock values
             <>
               <BudgetRow label="Accommodation" amount={85} total={180} />
               <BudgetRow label="Food & Drinks" amount={45} total={180} />

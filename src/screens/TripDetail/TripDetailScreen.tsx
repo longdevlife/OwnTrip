@@ -19,6 +19,7 @@ import { tripService, Trip, TripDay } from '@/services/tripService';
 import SummaryTab from './components/SummaryTab';
 import ItineraryTab from './components/ItineraryTab';
 import ExploreTab from './components/ExploreTab';
+import JournalTab from './components/JournalTab';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -144,11 +145,7 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
           <ExploreTab trip={trip} days={days} />
         </View>
         <View style={{ display: activeTab === 'journal' ? 'flex' : 'none' }}>
-          <View style={styles.comingSoonContainer}>
-            <Feather name="book-open" size={44} color="#D1D5DB" />
-            <Text style={styles.comingSoonTitle}>Journal</Text>
-            <Text style={styles.comingSoonText}>Coming soon...</Text>
-          </View>
+          <JournalTab trip={trip} days={days} />
         </View>
       </>
     );
