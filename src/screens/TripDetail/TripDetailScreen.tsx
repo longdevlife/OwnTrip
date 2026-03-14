@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { tripService, Trip, TripDay } from '@/services/tripService';
 import SummaryTab from './components/SummaryTab';
 import ItineraryTab from './components/ItineraryTab';
+import ExploreTab from './components/ExploreTab';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HEADER_HEIGHT = 260;
@@ -137,6 +138,7 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
       case 'itinerary':
         return <ItineraryTab trip={trip} days={days} />;
       case 'explore':
+        return <ExploreTab trip={trip} days={days} />;
       case 'journal':
         return (
           <View style={styles.comingSoonContainer}>
