@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   Platform,
   ActivityIndicator,
   Linking,
+  Alert,
+  Animated,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Trip, TripDay, Destination, tripService } from '@/services/tripService';
 import AddPlaceModal from './AddPlaceModal';
 
@@ -41,6 +44,10 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedDayId, setSelectedDayId] = useState('');
   const [selectedDayNumber, setSelectedDayNumber] = useState(1);
+
+  // Swipeable refs
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  const openSwipeable = useRef<string | null>(null);
 
   const fetchDestinations = useCallback(async () => {
     try {
@@ -86,8 +93,51 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
   };
 
   const handlePlaceAdded = () => {
-    // Refresh destinations after adding a place
     fetchDestinations();
+  };
+
+  // Delete place
+  const handleDeletePlace = (dest: Destination) => {
+    Alert.alert(
+      'Remove Place',
+      `Remove "${dest.place.name}" from Day ${dest.day}?`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => {
+          swipeableRefs.current[dest.place._id]?.close();
+        }},
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            // Optimistic delete
+            const backup = [...destinations];
+            setDestinations((prev) => prev.filter((d) => d.place._id !== dest.place._id));
+
+            try {
+              await tripService.removePlaceFromDay(dest.dayId, dest.place.placeId);
+            } catch (error: any) {
+              setDestinations(backup);
+              const msg = error?.response?.data?.message || 'Failed to remove place';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Render swipe right action
+  const renderDeleteAction = () => (
+    <View style={styles.swipeDeleteAction}>
+      <Feather name="trash-2" size={18} color="#FFF" />
+    </View>
+  );
+
+  // Get existing placeIds for the selected day (prevent duplicate add)
+  const getExistingPlaceIds = (dayNum: number): string[] => {
+    return (destByDay[dayNum] || []).map((d) => d.place.placeId);
   };
 
   if (loading) {
@@ -97,9 +147,6 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
       </View>
     );
   }
-
-  // Running index across all days
-  let placeIndex = 0;
 
   return (
     <View style={styles.container}>
@@ -144,7 +191,6 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                   </View>
                 ) : (
                   dayDests.map((dest, idx) => {
-                    placeIndex++;
                     const isLast = idx === dayDests.length - 1;
                     const tod = getTimeOfDay(dest.place.order);
                     const hasPhoto = dest.place.photo && !imgErrors[dest.place._id];
@@ -157,65 +203,73 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
                           {!isLast && <View style={styles.timelineLine} />}
                         </View>
 
-                        {/* Activity card */}
-                        <TouchableOpacity
-                          style={styles.activityCard}
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            if (dest.place.mapUrl) Linking.openURL(dest.place.mapUrl);
+                        {/* Activity card — swipeable */}
+                        <Swipeable
+                          ref={(ref) => { swipeableRefs.current[dest.place._id] = ref; }}
+                          renderRightActions={renderDeleteAction}
+                          rightThreshold={60}
+                          overshootRight={false}
+                          containerStyle={styles.swipeableContainer}
+                          onSwipeableWillOpen={() => {
+                            if (openSwipeable.current && openSwipeable.current !== dest.place._id) {
+                              swipeableRefs.current[openSwipeable.current]?.close();
+                            }
+                            openSwipeable.current = dest.place._id;
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          }}
+                          onSwipeableOpen={() => {
+                            handleDeletePlace(dest);
                           }}
                         >
-                          {/* Thumbnail */}
-                          {hasPhoto ? (
-                            <Image
-                              source={{ uri: dest.place.photo }}
-                              style={styles.activityThumb}
-                              onError={() => handleImageError(dest.place._id)}
-                            />
-                          ) : (
-                            <View style={[styles.activityThumb, styles.activityThumbPlaceholder]}>
-                              <Feather name="map-pin" size={18} color="#D1D5DB" />
-                            </View>
-                          )}
-
-                          {/* Info */}
-                          <View style={styles.activityInfo}>
-                            <Text style={styles.activityName} numberOfLines={1}>
-                              {dest.place.name}
-                            </Text>
-                            <View style={styles.activityMeta}>
-                              {dest.place.rating ? (
-                                <>
-                                  <Feather name="star" size={11} color="#F59E0B" />
-                                  <Text style={styles.activityRating}>{dest.place.rating}</Text>
-                                  <Text style={styles.activityDot}>·</Text>
-                                </>
-                              ) : null}
-                              <Text style={[styles.activityTag, { color: tod.color }]}>
-                                {tod.label}
-                              </Text>
-                            </View>
-                            {dest.place.address ? (
-                              <Text style={styles.activityAddr} numberOfLines={1}>
-                                {dest.place.address}
-                              </Text>
-                            ) : null}
-                          </View>
-
-                          {/* Check-in button */}
                           <TouchableOpacity
-                            style={styles.checkinBtn}
+                            style={styles.activityCard}
                             activeOpacity={0.7}
-                            onPress={(e) => {
-                              e.stopPropagation?.();
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              // TODO: check-in logic
+                            onPress={() => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              if (dest.place.mapUrl) Linking.openURL(dest.place.mapUrl);
                             }}
                           >
-                            <Text style={styles.checkinText}>Check in</Text>
+                            {/* Thumbnail */}
+                            {hasPhoto ? (
+                              <Image
+                                source={{ uri: dest.place.photo }}
+                                style={styles.activityThumb}
+                                onError={() => handleImageError(dest.place._id)}
+                              />
+                            ) : (
+                              <View style={[styles.activityThumb, styles.activityThumbPlaceholder]}>
+                                <Feather name="map-pin" size={18} color="#D1D5DB" />
+                              </View>
+                            )}
+
+                            {/* Info */}
+                            <View style={styles.activityInfo}>
+                              <Text style={styles.activityName} numberOfLines={1}>
+                                {dest.place.name}
+                              </Text>
+                              <View style={styles.activityMeta}>
+                                {dest.place.rating ? (
+                                  <>
+                                    <Feather name="star" size={11} color="#F59E0B" />
+                                    <Text style={styles.activityRating}>{dest.place.rating}</Text>
+                                    <Text style={styles.activityDot}>·</Text>
+                                  </>
+                                ) : null}
+                                <Text style={[styles.activityTag, { color: tod.color }]}>
+                                  {tod.label}
+                                </Text>
+                              </View>
+                              {dest.place.address ? (
+                                <Text style={styles.activityAddr} numberOfLines={1}>
+                                  {dest.place.address}
+                                </Text>
+                              ) : null}
+                            </View>
+
+                            {/* Open map icon */}
+                            <Feather name="external-link" size={14} color="#D1D5DB" />
                           </TouchableOpacity>
-                        </TouchableOpacity>
+                        </Swipeable>
                       </View>
                     );
                   })
@@ -242,6 +296,8 @@ export default function ItineraryTab({ trip, days }: { trip: Trip; days: TripDay
         onClose={() => setAddModalVisible(false)}
         dayId={selectedDayId}
         dayNumber={selectedDayNumber}
+        tripDestination={trip.destination}
+        existingPlaceIds={getExistingPlaceIds(selectedDayNumber)}
         onPlaceAdded={handlePlaceAdded}
       />
     </View>
@@ -319,6 +375,17 @@ const styles = StyleSheet.create({
     marginTop: -1,
   },
 
+  // Swipeable
+  swipeableContainer: { flex: 1, marginBottom: 10 },
+  swipeDeleteAction: {
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 60,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+
   // Activity card
   activityCard: {
     flex: 1,
@@ -328,7 +395,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 10,
-    marginBottom: 10,
   },
   activityThumb: {
     width: 48, height: 48, borderRadius: 10,
@@ -344,14 +410,6 @@ const styles = StyleSheet.create({
   activityDot: { fontSize: 12, color: '#9CA3AF' },
   activityTag: { fontSize: 12, fontWeight: '500' },
   activityAddr: { fontSize: 11, color: '#9CA3AF', lineHeight: 14 },
-
-  // Check-in button
-  checkinBtn: {
-    backgroundColor: BRAND,
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 8,
-  },
-  checkinText: { fontSize: 12, fontWeight: '600', color: '#FFF' },
 
   // Add Activity
   addActivityBtn: {

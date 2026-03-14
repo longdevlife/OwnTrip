@@ -112,16 +112,11 @@ export const placesService = {
    * GET /api/places/search?q=cafe dalat
    */
   search: async (query: string): Promise<Place[]> => {
-    try {
-      const response = await axiosClient.get<any, SearchResponse>(
-        ENDPOINTS.PLACES.SEARCH,
-        { params: { q: query } }
-      );
-      return response?.places ?? [];
-    } catch (error) {
-      console.error('Error searching places:', error);
-      return [];
-    }
+    const response = await axiosClient.get<any, SearchResponse>(
+      ENDPOINTS.PLACES.SEARCH,
+      { params: { q: query } }
+    );
+    return response?.places ?? [];
   },
 
   /**

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,13 +6,12 @@ import {
   Modal,
   TouchableOpacity,
   TextInput,
-  FlatList,
+  ScrollView,
   Image,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
-  ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -21,63 +20,119 @@ import { tripService, AddPlaceBody } from '@/services/tripService';
 
 const BRAND = '#4A7CFF';
 
-// Suggested popular places cho testing — dùng khi search API hết quota
-const SUGGESTED_PLACES: Place[] = [
-  {
-    placeId: 'ChIJ5T-k5YBtcTERonwbdDhPzUg',
-    name: 'Mongo Land - Đà Lạt',
-    address: 'Tổ 16 thôn 1, Tà Nung, Đà Lạt, Lâm Đồng 670000',
-    latitude: 11.9157314,
-    longitude: 108.3392217,
-    rating: 4.5,
-    types: ['tourist_attraction'],
-    mapUrl: 'https://maps.google.com/?cid=5245936244841217186',
-    photo: null,
-    photos: [],
-  },
-  {
-    placeId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-    name: 'Hồ Xuân Hương - Đà Lạt',
-    address: 'Trần Quốc Toản, Phường 1, Đà Lạt, Lâm Đồng',
-    latitude: 11.9404,
-    longitude: 108.4383,
-    rating: 4.6,
-    types: ['lake', 'natural_feature'],
-    mapUrl: 'https://maps.google.com/?cid=123',
-    photo: null,
-    photos: [],
-  },
-  {
-    placeId: 'ChIJH123_test01',
-    name: 'Chợ Đà Lạt',
-    address: 'Nguyễn Thị Minh Khai, Phường 1, Đà Lạt, Lâm Đồng',
-    latitude: 11.9418,
-    longitude: 108.4422,
-    rating: 4.3,
-    types: ['market', 'point_of_interest'],
-    mapUrl: 'https://maps.google.com/?cid=456',
-    photo: null,
-    photos: [],
-  },
-  {
-    placeId: 'ChIJH123_test02',
-    name: 'Thác Datanla',
-    address: 'Đèo Prenn, Phường 3, Đà Lạt, Lâm Đồng',
-    latitude: 11.9089,
-    longitude: 108.4503,
-    rating: 4.4,
-    types: ['waterfall', 'tourist_attraction'],
-    mapUrl: 'https://maps.google.com/?cid=789',
-    photo: null,
-    photos: [],
-  },
+// Quick search categories — small text pills only
+const CATEGORIES = [
+  { label: 'Restaurants', query: 'nhà hàng' },
+  { label: 'Cafés', query: 'quán cafe' },
+  { label: 'Attractions', query: 'điểm du lịch' },
+  { label: 'Hotels', query: 'khách sạn' },
+  { label: 'Shopping', query: 'mua sắm' },
+  { label: 'Nightlife', query: 'bar pub' },
 ];
+
+// Suggested places by destination
+function getSuggestedPlaces(destination: string): Place[] {
+  const lower = destination.toLowerCase();
+
+  if (lower.includes('vung tau') || lower.includes('vũng tàu') || lower.includes('ba ria')) {
+    return [
+      {
+        placeId: 'suggest_vt_1', name: 'Bãi Sau - Long Beach',
+        address: 'Thùy Vân, Phường 2, Vũng Tàu',
+        latitude: 10.3365, longitude: 107.0903, rating: 4.5,
+        types: ['beach'], mapUrl: 'https://maps.google.com/?cid=1',
+        photo: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_vt_2', name: 'Tượng Chúa Kitô Vũng Tàu',
+        address: '01 Hạ Long, Phường 1, Vũng Tàu',
+        latitude: 10.3271, longitude: 107.0952, rating: 4.7,
+        types: ['landmark'], mapUrl: 'https://maps.google.com/?cid=2',
+        photo: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_vt_3', name: 'Hải Đăng Vũng Tàu',
+        address: 'Hải Đăng, Phường 2, Vũng Tàu',
+        latitude: 10.3288, longitude: 107.0844, rating: 4.4,
+        types: ['lighthouse'], mapUrl: 'https://maps.google.com/?cid=3',
+        photo: 'https://images.unsplash.com/photo-1585409677983-0f6c41ca9c3b?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_vt_4', name: 'Bạch Dinh - White Palace',
+        address: 'Trần Phú, Phường 1, Vũng Tàu',
+        latitude: 10.3310, longitude: 107.0780, rating: 4.3,
+        types: ['museum'], mapUrl: 'https://maps.google.com/?cid=4',
+        photo: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=200&h=200&fit=crop', photos: [],
+      },
+    ];
+  }
+
+  if (lower.includes('ha noi') || lower.includes('hà nội')) {
+    return [
+      {
+        placeId: 'suggest_hn_1', name: 'Hồ Hoàn Kiếm',
+        address: 'Phố Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội',
+        latitude: 21.0285, longitude: 105.8542, rating: 4.7,
+        types: ['lake'], mapUrl: 'https://maps.google.com/?cid=10',
+        photo: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_hn_2', name: 'Phố Cổ Hà Nội',
+        address: 'Hoàn Kiếm, Hà Nội',
+        latitude: 21.0340, longitude: 105.8500, rating: 4.6,
+        types: ['neighborhood'], mapUrl: 'https://maps.google.com/?cid=11',
+        photo: 'https://images.unsplash.com/photo-1509030450996-dd1a26dda07a?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_hn_3', name: 'Văn Miếu - Quốc Tử Giám',
+        address: '58 Quốc Tử Giám, Đống Đa, Hà Nội',
+        latitude: 21.0277, longitude: 105.8355, rating: 4.5,
+        types: ['temple'], mapUrl: 'https://maps.google.com/?cid=12',
+        photo: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=200&h=200&fit=crop', photos: [],
+      },
+      {
+        placeId: 'suggest_hn_4', name: 'Lăng Chủ tịch Hồ Chí Minh',
+        address: '2 Hùng Vương, Ba Đình, Hà Nội',
+        latitude: 21.0368, longitude: 105.8344, rating: 4.8,
+        types: ['landmark'], mapUrl: 'https://maps.google.com/?cid=13',
+        photo: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=200&h=200&fit=crop', photos: [],
+      },
+    ];
+  }
+
+  // Default
+  return [
+    {
+      placeId: 'suggest_default_1', name: 'Chợ Bến Thành',
+      address: 'Lê Lợi, Quận 1, TP. Hồ Chí Minh',
+      latitude: 10.7721, longitude: 106.6980, rating: 4.4,
+      types: ['market'], mapUrl: 'https://maps.google.com/?cid=20',
+      photo: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=200&h=200&fit=crop', photos: [],
+    },
+    {
+      placeId: 'suggest_default_2', name: 'Nhà thờ Đức Bà',
+      address: '01 Công xã Paris, Quận 1, TP. Hồ Chí Minh',
+      latitude: 10.7797, longitude: 106.6990, rating: 4.6,
+      types: ['church'], mapUrl: 'https://maps.google.com/?cid=21',
+      photo: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=200&h=200&fit=crop', photos: [],
+    },
+    {
+      placeId: 'suggest_default_3', name: 'Bưu điện Trung tâm',
+      address: '2 Công xã Paris, Quận 1, TP. Hồ Chí Minh',
+      latitude: 10.7799, longitude: 106.7000, rating: 4.5,
+      types: ['landmark'], mapUrl: 'https://maps.google.com/?cid=22',
+      photo: 'https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=200&h=200&fit=crop', photos: [],
+    },
+  ];
+}
 
 interface AddPlaceModalProps {
   visible: boolean;
   onClose: () => void;
   dayId: string;
   dayNumber: number;
+  tripDestination: string;
+  existingPlaceIds?: string[];
   onPlaceAdded: () => void;
 }
 
@@ -86,6 +141,8 @@ export default function AddPlaceModal({
   onClose,
   dayId,
   dayNumber,
+  tripDestination,
+  existingPlaceIds = [],
   onPlaceAdded,
 }: AddPlaceModalProps) {
   const [query, setQuery] = useState('');
@@ -93,11 +150,15 @@ export default function AddPlaceModal({
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [searchError, setSearchError] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSearch = useCallback((text: string) => {
+  const suggested = useMemo(() => getSuggestedPlaces(tripDestination), [tripDestination]);
+
+  const handleSearch = useCallback((text: string, category?: string | null) => {
     setQuery(text);
     setSearchError(false);
+    if (category !== undefined) setActiveCategory(category);
 
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
 
@@ -112,7 +173,7 @@ export default function AddPlaceModal({
         const places = await placesService.search(text.trim());
         setResults(places);
       } catch (e: any) {
-        console.error('Search error:', e);
+        console.warn('Search error:', e?.message);
         setSearchError(true);
         setResults([]);
       } finally {
@@ -121,7 +182,19 @@ export default function AddPlaceModal({
     }, 400);
   }, []);
 
+  const handleCategoryTap = (cat: { label: string; query: string }) => {
+    if (activeCategory === cat.label) {
+      setActiveCategory(null);
+      handleSearch('', null);
+      return;
+    }
+    const searchText = `${cat.query} ${tripDestination}`;
+    handleSearch(searchText, cat.label);
+  };
+
   const handleAddPlace = async (place: Place) => {
+    if (existingPlaceIds.includes(place.placeId)) return;
+
     try {
       setAdding(place.placeId);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -138,11 +211,9 @@ export default function AddPlaceModal({
       };
 
       await tripService.addPlaceToDay(dayId, body);
-
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Success', `"${place.name}" added to Day ${dayNumber}!`);
-      onPlaceAdded();
       handleClose();
+      onPlaceAdded();
     } catch (error: any) {
       const msg = error?.response?.data?.message || error?.message || 'Failed to add place';
       Alert.alert('Error', msg);
@@ -156,55 +227,63 @@ export default function AddPlaceModal({
     setResults([]);
     setSearching(false);
     setSearchError(false);
+    setActiveCategory(null);
     onClose();
   };
 
-  const renderPlaceItem = (item: Place) => {
+  // ===== RENDER PLACE ROW — Apple Maps style =====
+  const renderRow = (item: Place, isLast: boolean) => {
     const isAdding = adding === item.placeId;
+    const isAdded = existingPlaceIds.includes(item.placeId);
 
     return (
-      <TouchableOpacity
-        key={item.placeId}
-        style={styles.placeItem}
-        activeOpacity={0.7}
-        onPress={() => handleAddPlace(item)}
-        disabled={!!adding}
-      >
-        {item.photo ? (
-          <Image source={{ uri: item.photo }} style={styles.placeThumb} />
-        ) : (
-          <View style={[styles.placeThumb, styles.placeThumbEmpty]}>
-            <Feather name="map-pin" size={16} color="#D1D5DB" />
-          </View>
-        )}
-
-        <View style={styles.placeInfo}>
-          <Text style={styles.placeName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.placeAddr} numberOfLines={1}>{item.address}</Text>
-          {item.rating ? (
-            <View style={styles.ratingRow}>
-              <Feather name="star" size={10} color="#F59E0B" />
-              <Text style={styles.ratingText}>{item.rating}</Text>
-              {item.totalReviews ? (
-                <Text style={styles.reviewCount}>({item.totalReviews})</Text>
-              ) : null}
+      <View key={item.placeId}>
+        <TouchableOpacity
+          style={[styles.row, isAdded && styles.rowDisabled]}
+          activeOpacity={isAdded ? 1 : 0.6}
+          onPress={() => !isAdded && handleAddPlace(item)}
+          disabled={!!adding || isAdded}
+        >
+          {/* Thumbnail */}
+          {item.photo ? (
+            <Image source={{ uri: item.photo }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbEmpty]}>
+              <Feather name="map-pin" size={16} color="#C4C4C4" />
             </View>
-          ) : null}
-        </View>
+          )}
 
-        {isAdding ? (
-          <ActivityIndicator size="small" color={BRAND} />
-        ) : (
-          <View style={styles.addIcon}>
-            <Feather name="plus" size={16} color={BRAND} />
+          {/* Text */}
+          <View style={styles.rowText}>
+            <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.rowAddr} numberOfLines={1}>{item.address}</Text>
+            {item.rating ? (
+              <View style={styles.rowRating}>
+                <Feather name="star" size={10} color="#F59E0B" />
+                <Text style={styles.rowRatingVal}>{item.rating}</Text>
+              </View>
+            ) : null}
           </View>
-        )}
-      </TouchableOpacity>
+
+          {/* Action */}
+          {isAdded ? (
+            <Feather name="check-circle" size={22} color="#10B981" />
+          ) : isAdding ? (
+            <ActivityIndicator size="small" color={BRAND} />
+          ) : (
+            <Feather name="plus-circle" size={22} color={BRAND} />
+          )}
+        </TouchableOpacity>
+        {!isLast && <View style={styles.divider} />}
+      </View>
     );
   };
 
-  // Show search results or suggested places
-  const showSuggested = query.length < 2 || searchError;
+  // Build display list
+  const displayList = results.length > 0 ? results : (query.length < 2 ? suggested : []);
+  const sectionTitle = results.length > 0
+    ? `${results.length} result${results.length > 1 ? 's' : ''}`
+    : `Popular in ${tripDestination}`;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -212,177 +291,182 @@ export default function AddPlaceModal({
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* HEADER */}
+        {/* ===== HANDLE BAR ===== */}
+        <View style={styles.handleBar}>
+          <View style={styles.handle} />
+        </View>
+
+        {/* ===== HEADER ===== */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.headerTitle}>Add to Day {dayNumber}</Text>
-            <Text style={styles.headerSubtitle}>Search or pick from suggestions</Text>
-          </View>
-          <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
-            <Feather name="x" size={20} color="#6B7280" />
+          <Text style={styles.headerTitle}>Add to Day {dayNumber}</Text>
+          <TouchableOpacity onPress={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Feather name="x" size={22} color="#6B7280" />
           </TouchableOpacity>
         </View>
 
-        {/* SEARCH INPUT */}
-        <View style={styles.searchBox}>
-          <Feather name="search" size={18} color="#9CA3AF" />
+        {/* ===== SEARCH BAR ===== */}
+        <View style={styles.searchBar}>
+          <Feather name="search" size={16} color="#9CA3AF" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search restaurants, attractions..."
+            placeholder={`Search places in ${tripDestination}`}
             placeholderTextColor="#9CA3AF"
             value={query}
-            onChangeText={handleSearch}
-            autoFocus
+            onChangeText={(t) => handleSearch(t)}
             returnKeyType="search"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')}>
-              <Feather name="x-circle" size={18} color="#D1D5DB" />
+            <TouchableOpacity onPress={() => handleSearch('', null)}>
+              <Feather name="x-circle" size={16} color="#D1D5DB" />
             </TouchableOpacity>
           )}
         </View>
 
-        {/* API Error Banner */}
+        {/* ===== QUICK FILTERS ===== */}
+        <View style={styles.pillsWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pills}
+          >
+            {CATEGORIES.map((cat) => {
+              const active = activeCategory === cat.label;
+              return (
+                <TouchableOpacity
+                  key={cat.label}
+                  style={styles.pill}
+                  activeOpacity={0.6}
+                  onPress={() => handleCategoryTap(cat)}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                    {cat.label}
+                  </Text>
+                  {active && <View style={styles.pillUnderline} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* ===== ERROR BANNER ===== */}
         {searchError && (
           <View style={styles.errorBanner}>
-            <Feather name="alert-circle" size={14} color="#D97706" />
-            <Text style={styles.errorText}>
-              Search unavailable (API quota exceeded). Use suggestions below.
-            </Text>
+            <Feather name="wifi-off" size={13} color="#92400E" />
+            <Text style={styles.errorText}>Search unavailable. Try suggestions below.</Text>
           </View>
         )}
 
-        {/* CONTENT */}
+        {/* ===== CONTENT ===== */}
         {searching ? (
-          <View style={styles.centerBox}>
+          <View style={styles.center}>
             <ActivityIndicator size="large" color={BRAND} />
-            <Text style={styles.searchingText}>Searching...</Text>
           </View>
-        ) : results.length > 0 ? (
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.placeId}
-            renderItem={({ item }) => renderPlaceItem(item)}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          />
-        ) : (
+        ) : displayList.length > 0 ? (
           <ScrollView
-            style={styles.suggestedScroll}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
+            style={styles.listScroll}
+            contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {/* No results message for typed queries */}
-            {query.length >= 2 && !searchError && (
-              <View style={styles.noResultsBanner}>
-                <Text style={styles.noResultsText}>No results for "{query}"</Text>
-              </View>
-            )}
-
-            {/* Suggested Places */}
-            <Text style={styles.suggestedTitle}>Suggested Places</Text>
-            <Text style={styles.suggestedHint}>
-              Tap a place to add it to your itinerary
-            </Text>
-            {SUGGESTED_PLACES.map((place) => renderPlaceItem(place))}
+            <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+            {displayList.map((place, idx) => renderRow(place, idx === displayList.length - 1))}
           </ScrollView>
-        )}
+        ) : query.length >= 2 && !searchError ? (
+          <View style={styles.center}>
+            <Feather name="search" size={32} color="#E5E7EB" />
+            <Text style={styles.emptyText}>No results for &quot;{query}&quot;</Text>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </Modal>
   );
 }
 
+// ===== STYLES — clean, white, Apple Maps inspired =====
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF' },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  // Handle bar
+  handleBar: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB' },
 
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 16 : 20,
-    paddingBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingBottom: 12,
   },
-  headerLeft: { gap: 1 },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#1A1A1A' },
-  headerSubtitle: { fontSize: 13, color: '#9CA3AF' },
-  closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center', alignItems: 'center',
-  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
 
-  // Search
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+  // Search bar
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     marginHorizontal: 20, marginBottom: 12,
-    backgroundColor: '#F3F4F6', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10, paddingHorizontal: 12,
+    height: 40,
   },
   searchInput: {
     flex: 1, fontSize: 15, color: '#1A1A1A',
     paddingVertical: 0,
   },
 
-  // Error banner
+  // Pills wrapper — FIXED height, prevents flex expansion
+  pillsWrapper: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  pills: {
+    paddingHorizontal: 20, paddingBottom: 10, gap: 20,
+  },
+  pill: {
+    alignItems: 'center',
+  },
+  pillText: { fontSize: 14, fontWeight: '500', color: '#9CA3AF' },
+  pillTextActive: { color: '#1A1A1A', fontWeight: '600' },
+  pillUnderline: {
+    marginTop: 6, width: '100%', height: 2,
+    borderRadius: 1, backgroundColor: '#1A1A1A',
+  },
+
+  // Error
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginHorizontal: 20, marginBottom: 12,
-    backgroundColor: '#FFFBEB', borderRadius: 10,
-    paddingVertical: 10, paddingHorizontal: 14,
+    marginHorizontal: 20, marginTop: 12,
+    paddingVertical: 8, paddingHorizontal: 12,
+    backgroundColor: '#FFFBEB', borderRadius: 8,
   },
-  errorText: { fontSize: 13, color: '#D97706', flex: 1 },
-
-  // No results
-  noResultsBanner: {
-    paddingVertical: 10, paddingHorizontal: 4,
-    marginBottom: 8,
-  },
-  noResultsText: { fontSize: 14, color: '#9CA3AF' },
-
-  // Suggested
-  suggestedScroll: { flex: 1 },
-  suggestedTitle: {
-    fontSize: 16, fontWeight: '700', color: '#1A1A1A',
-    marginBottom: 2,
-  },
-  suggestedHint: {
-    fontSize: 13, color: '#9CA3AF', marginBottom: 12,
-  },
+  errorText: { fontSize: 13, color: '#92400E', flex: 1 },
 
   // List
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  listScroll: { flex: 1 },
+  listContainer: { paddingHorizontal: 20, paddingBottom: 40 },
+  sectionTitle: {
+    fontSize: 13, fontWeight: '600', color: '#9CA3AF',
+    textTransform: 'uppercase', letterSpacing: 0.5,
+    paddingVertical: 12,
+  },
 
-  // Place item
-  placeItem: {
+  // Place row — clean, no card, divider-separated
+  row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F3F4F6',
   },
-  placeThumb: {
-    width: 52, height: 52, borderRadius: 12, backgroundColor: '#F3F4F6',
+  rowDisabled: { opacity: 0.45 },
+  thumb: {
+    width: 48, height: 48, borderRadius: 10,
+    backgroundColor: '#F3F4F6',
   },
-  placeThumbEmpty: {
+  thumbEmpty: {
     justifyContent: 'center', alignItems: 'center',
   },
-  placeInfo: { flex: 1, gap: 2 },
-  placeName: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
-  placeAddr: { fontSize: 12, color: '#9CA3AF', lineHeight: 16 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
-  ratingText: { fontSize: 12, fontWeight: '600', color: '#D97706' },
-  reviewCount: { fontSize: 11, color: '#9CA3AF' },
+  rowText: { flex: 1, gap: 1 },
+  rowName: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
+  rowAddr: { fontSize: 13, color: '#9CA3AF' },
+  rowRating: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 1 },
+  rowRatingVal: { fontSize: 12, fontWeight: '600', color: '#D97706' },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#F3F4F6', marginLeft: 60 },
 
-  addIcon: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: BRAND + '14',
-    justifyContent: 'center', alignItems: 'center',
-  },
-
-  // Center content
-  centerBox: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 40, gap: 6,
-  },
-  searchingText: { fontSize: 14, color: '#9CA3AF', marginTop: 8 },
+  // Center / empty
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 8 },
+  emptyText: { fontSize: 15, color: '#9CA3AF' },
 });

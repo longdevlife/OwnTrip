@@ -157,4 +157,15 @@ export const tripService = {
       throw error;
     }
   },
+
+  deleteTrip: async (tripId: string): Promise<any> => {
+    try {
+      const url = ENDPOINTS.TRIPS.DELETE(tripId);
+      const response = await axiosClient.delete(url);
+      return response;
+    } catch (error) {
+      console.error(`Error deleting trip ${tripId}:`, error);
+      throw error;
+    }
+  },
 };

@@ -12,12 +12,14 @@ import {
   StatusBar,
   Dimensions,
   Animated,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { Swipeable } from 'react-native-gesture-handler';
 import { tripService, Trip } from '@/services/tripService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -26,6 +28,8 @@ const SEGMENT_HORIZONTAL_MARGIN = 24;
 const SEGMENT_CONTAINER_WIDTH = SCREEN_WIDTH - SEGMENT_HORIZONTAL_MARGIN * 2 - SEGMENT_PADDING * 2;
 const SEGMENT_COUNT = 3;
 const SEGMENT_WIDTH = SEGMENT_CONTAINER_WIDTH / SEGMENT_COUNT;
+
+const BRAND = '#4A7CFF';
 
 type FilterType = 'all' | 'upcoming' | 'past';
 const FILTERS: FilterType[] = ['all', 'upcoming', 'past'];
@@ -60,6 +64,10 @@ export default function TripsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
 
+  // Swipeable refs — auto close other swipeables
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  const openSwipeable = useRef<string | null>(null);
+
   // Animated sliding indicator
   const slideAnim = useRef(new Animated.Value(0)).current;
 
@@ -90,6 +98,56 @@ export default function TripsScreen() {
     }).start();
   };
 
+  // Optimistic delete
+  const handleDeleteTrip = (trip: Trip) => {
+    Alert.alert(
+      'Delete Trip',
+      `Are you sure you want to delete "${trip.title}"?`,
+      [
+        { text: 'Cancel', style: 'cancel', onPress: () => {
+          // Close swipeable
+          swipeableRefs.current[trip._id]?.close();
+        }},
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            // Optimistic: remove from UI immediately
+            const backup = [...trips];
+            setTrips((prev) => prev.filter((t) => t._id !== trip._id));
+
+            try {
+              await tripService.deleteTrip(trip._id);
+            } catch (error: any) {
+              // Rollback on error
+              setTrips(backup);
+              const msg = error?.response?.data?.message || 'Failed to delete trip';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Render swipeable right action — refined for tall cards
+  const renderRightActions = (trip: Trip) => {
+    return (
+      <TouchableOpacity
+        style={styles.swipeDeleteBtn}
+        activeOpacity={0.7}
+        onPress={() => handleDeleteTrip(trip)}
+      >
+        <View style={styles.swipeDeleteCircle}>
+          <Feather name="trash-2" size={18} color="#EF4444" />
+        </View>
+        <Text style={styles.swipeDeleteText}>Delete</Text>
+      </TouchableOpacity>
+    );
+  };
+
   const filteredTrips = trips.filter((trip) => {
     const status = getTripStatus(trip);
     if (filter === 'upcoming') return status === 'upcoming';
@@ -108,54 +166,69 @@ export default function TripsScreen() {
     const daysUntil = getDaysUntil(item.startDate);
 
     return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.95}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push(`/trip/${item._id}` as any);
+      <Swipeable
+        ref={(ref) => { swipeableRefs.current[item._id] = ref; }}
+        renderRightActions={() => renderRightActions(item)}
+        rightThreshold={60}
+        overshootRight={false}
+        onSwipeableWillOpen={() => {
+          // Close previously opened swipeable
+          if (openSwipeable.current && openSwipeable.current !== item._id) {
+            swipeableRefs.current[openSwipeable.current]?.close();
+          }
+          openSwipeable.current = item._id;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         }}
       >
-        <View style={styles.cardImageBox}>
-          <Image
-            source={{ uri: item.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800' }}
-            style={styles.cardImage}
-          />
-          <LinearGradient
-            colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.5)']}
-            style={styles.cardOverlay}
-          />
+        <TouchableOpacity
+          style={styles.card}
+          activeOpacity={0.95}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push(`/trip/${item._id}` as any);
+          }}
+        >
+          <View style={styles.cardImageBox}>
+            <Image
+              source={{ uri: item.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800' }}
+              style={styles.cardImage}
+            />
+            <LinearGradient
+              colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.5)']}
+              style={styles.cardOverlay}
+            />
 
-          {status === 'ongoing' && (
-            <View style={styles.liveIndicator}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>Active</Text>
-            </View>
-          )}
+            {status === 'ongoing' && (
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>Active</Text>
+              </View>
+            )}
 
-          {status === 'upcoming' && daysUntil > 0 && daysUntil <= 30 && (
-            <View style={styles.countdownBadge}>
-              <Text style={styles.countdownText}>
-                {daysUntil === 1 ? 'Tomorrow' : `${daysUntil}d`}
+            {status === 'upcoming' && daysUntil > 0 && daysUntil <= 30 && (
+              <View style={styles.countdownBadge}>
+                <Text style={styles.countdownText}>
+                  {daysUntil === 1 ? 'Tomorrow' : `${daysUntil}d`}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.cardImageContent}>
+              <Text style={styles.cardImageTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={styles.cardImageMeta}>
+                {item.destination} · {item.totalDays} day{item.totalDays > 1 ? 's' : ''}
               </Text>
             </View>
-          )}
-
-          <View style={styles.cardImageContent}>
-            <Text style={styles.cardImageTitle} numberOfLines={2}>{item.title}</Text>
-            <Text style={styles.cardImageMeta}>
-              {item.destination} · {item.totalDays} day{item.totalDays > 1 ? 's' : ''}
-            </Text>
           </View>
-        </View>
 
-        <View style={styles.cardBottom}>
-          <Feather name="calendar" size={13} color="#9CA3AF" />
-          <Text style={styles.cardBottomText}>{formatDateRange(item.startDate, item.endDate)}</Text>
-          <View style={{ flex: 1 }} />
-          <Feather name="chevron-right" size={16} color="#D1D5DB" />
-        </View>
-      </TouchableOpacity>
+          <View style={styles.cardBottom}>
+            <Feather name="calendar" size={13} color="#9CA3AF" />
+            <Text style={styles.cardBottomText}>{formatDateRange(item.startDate, item.endDate)}</Text>
+            <View style={{ flex: 1 }} />
+            <Feather name="chevron-right" size={16} color="#D1D5DB" />
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
@@ -174,7 +247,7 @@ export default function TripsScreen() {
             router.push('/create-trip' as any);
           }}
         >
-          <Feather name="edit-3" size={15} color="#1A1A1A" />
+          <Feather name="edit-3" size={14} color="#FFF" />
           <Text style={styles.planBtnText}>Plan Trip</Text>
         </TouchableOpacity>
       </View>
@@ -188,7 +261,7 @@ export default function TripsScreen() {
             { width: SEGMENT_WIDTH, transform: [{ translateX: slideAnim }] },
           ]}
         />
-        {FILTERS.map((key, index) => {
+        {FILTERS.map((key) => {
           const active = filter === key;
           const label = key === 'all' ? `All (${counts.all})`
             : key === 'upcoming' ? `Upcoming (${counts.upcoming})`
@@ -264,11 +337,11 @@ const styles = StyleSheet.create({
   // Plan Trip button — text CTA, not icon-only
   planBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 10, borderWidth: 1.5, borderColor: '#E5E7EB',
-    backgroundColor: '#FAFAFA',
+    paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: BRAND,
   },
-  planBtnText: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
+  planBtnText: { fontSize: 13, fontWeight: '600', color: '#FFF' },
 
   // Animated Segmented Control
   segmented: {
@@ -337,6 +410,32 @@ const styles = StyleSheet.create({
   },
   cardBottomText: { fontSize: 13, color: '#6B7280' },
 
+  // Swipe delete — soft bg + white circle icon
+  swipeDeleteBtn: {
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    marginBottom: 16,
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 14,
+    gap: 6,
+  },
+  swipeDeleteCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center', alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
+      android: { elevation: 2 },
+    }),
+  },
+  swipeDeleteText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#EF4444',
+  },
+
   // Empty
   empty: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, gap: 6 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: '#1A1A1A', marginTop: 12 },
@@ -344,7 +443,7 @@ const styles = StyleSheet.create({
   emptyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 16, paddingHorizontal: 20, paddingVertical: 12,
-    backgroundColor: '#4A7CFF', borderRadius: 10,
+    backgroundColor: BRAND, borderRadius: 10,
   },
   emptyBtnText: { fontSize: 14, fontWeight: '600', color: '#FFF' },
 });
