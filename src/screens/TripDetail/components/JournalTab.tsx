@@ -7,19 +7,28 @@ import {
   TouchableOpacity,
   Platform,
   Modal,
-  Dimensions,
   ActivityIndicator,
   StatusBar,
+  Alert,
+  PanResponder,
+  LayoutAnimation,
+  UIManager,
+  Linking,
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Trip, TripDay } from '@/services/tripService';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 const BRAND = '#4A7CFF';
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /* ─── Mock data ─── */
 const MOCK_MEMORIES = [
@@ -90,6 +99,7 @@ interface TimelineEntry {
 interface JournalTabProps {
   trip: Trip;
   days: TripDay[];
+  onScrollToMap?: () => void;
 }
 
 // ═══════════════════════════════════════
@@ -165,6 +175,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 .map-btn:active{transform:scale(0.92)}
 .map-btn svg{width:18px;height:18px}
 .map-btn.active{background:${brand};color:white}
+.map-btn.active svg{stroke:white}
 .custom-div-icon{background:none!important;border:none!important}
 .marker-pin{width:32px;height:32px;border-radius:50% 50% 50% 0;background:linear-gradient(135deg,${brand},${brand}dd);position:relative;transform:rotate(-45deg);border:2.5px solid #fff;box-shadow:0 3px 10px rgba(74,124,255,0.4);transition:transform 0.2s ease;display:flex;align-items:center;justify-content:center}
 .marker-pin .marker-num{transform:rotate(45deg);font-size:13px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.2);line-height:1}
@@ -179,6 +190,7 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
 .leaflet-control-attribution{background:rgba(255,255,255,0.7)!important;font-size:9px!important;border-radius:6px 0 0 0!important;padding:2px 6px!important}
 .brand-watermark{position:absolute;top:12px;left:12px;z-index:1000;background:rgba(255,255,255,0.92);border-radius:10px;padding:6px 12px;display:flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,0.08);font-size:13px;font-weight:700;color:#1A1A1A;border:1px solid rgba(0,0,0,0.04)}
 .brand-dot{width:8px;height:8px;border-radius:50%;background:${brand}}
+.user-location-marker{width:16px;height:16px;border-radius:50%;background:#4285F4;border:3px solid #fff;box-shadow:0 0 0 4px rgba(66,133,244,0.25),0 2px 6px rgba(0,0,0,0.2)}
 </style>
 </head>
 <body>
@@ -188,9 +200,12 @@ html,body{width:100%;height:100%;overflow:hidden;font-family:-apple-system,Blink
   <button class="map-btn" id="layerToggle" onclick="toggleLayer()">
     <svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
   </button>
+  <button class="map-btn" id="myLocationBtn" onclick="requestMyLocation()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>
+  </button>
 </div>
 <script>
-var markers=[];var activeMarkerIdx=-1;var isSatellite=false;
+var markers=[];var activeMarkerIdx=-1;var isSatellite=false;var userLocMarker=null;
 var map=L.map('map',{zoomControl:false}).setView([${centerLat},${centerLng}],${zoomLevel});
 var osmLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19});
 var satLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:19});
@@ -199,6 +214,8 @@ function toggleLayer(){var btn=document.getElementById('layerToggle');if(isSatel
 function highlightMarker(idx){markers.forEach(function(m){var el=m.getElement();if(el)el.classList.remove('marker-active')});if(markers[idx]){var el=markers[idx].getElement();if(el)el.classList.add('marker-active');activeMarkerIdx=idx}}
 function focusMarker(idx){if(markers[idx]){map.flyTo(markers[idx].getLatLng(),16,{duration:0.8});markers[idx].openPopup();highlightMarker(idx)}}
 function fitAllBounds(){if(typeof polyline!=='undefined'){map.fitBounds(polyline.getBounds(),{padding:[50,50],animate:true})}}
+function requestMyLocation(){window.ReactNativeWebView.postMessage(JSON.stringify({type:'requestLocation'}))}
+function showUserLocation(lat,lng){if(userLocMarker){map.removeLayer(userLocMarker)}var icon=L.divIcon({className:'',html:'<div class="user-location-marker"></div>',iconSize:[16,16],iconAnchor:[8,8]});userLocMarker=L.marker([lat,lng],{icon:icon,zIndexOffset:1000}).addTo(map);map.flyTo([lat,lng],15,{duration:1})}
 ${markersJs}
 ${routeJs}
 ${distanceLabelsJs}
@@ -208,26 +225,53 @@ ${distanceLabelsJs}
 }
 
 // ═══════════════════════════════════════
-// TIMELINE ITEM COMPONENT (for reorder)
+// DRAGGABLE TIMELINE ITEM
 // ═══════════════════════════════════════
-interface TimelineItemProps {
+interface DraggableTimelineItemProps {
   entry: TimelineEntry;
   idx: number;
   isHighlighted: boolean;
   isLast: boolean;
   dist: { distance: string; time: string } | null;
   onTap: (idx: number) => void;
-  onMoveUp: (idx: number) => void;
-  onMoveDown: (idx: number) => void;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
+  onDragStart: (idx: number) => void;
+  onDragEnd: (fromIdx: number, dy: number) => void;
+  itemHeight: number;
 }
 
-const TimelineItem = React.memo(({
+function DraggableTimelineItem({
   entry, idx, isHighlighted, isLast, dist,
-  onTap, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
-}: TimelineItemProps) => {
+  onTap, onDragStart, onDragEnd, itemHeight,
+}: DraggableTimelineItemProps) {
   const hasPhoto = !!entry.photo;
+  const isDragging = useRef(false);
+  const dragStartY = useRef(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only activate for vertical drags on the drag handle area
+        return Math.abs(gestureState.dy) > 8;
+      },
+      onPanResponderGrant: () => {
+        isDragging.current = true;
+        dragStartY.current = 0;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onDragStart(idx);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        dragStartY.current = gestureState.dy;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        isDragging.current = false;
+        onDragEnd(idx, gestureState.dy);
+      },
+      onPanResponderTerminate: () => {
+        isDragging.current = false;
+      },
+    })
+  ).current;
 
   return (
     <>
@@ -236,6 +280,11 @@ const TimelineItem = React.memo(({
         activeOpacity={0.7}
         onPress={() => onTap(idx)}
       >
+        {/* Drag Handle */}
+        <View style={styles.dragHandle} {...panResponder.panHandlers}>
+          <Feather name="menu" size={16} color="#C5C8CE" />
+        </View>
+
         {/* Step Number */}
         <View style={styles.timelineStepCol}>
           <View style={[styles.timelineStepDot, isHighlighted && styles.timelineStepDotActive]}>
@@ -268,26 +317,6 @@ const TimelineItem = React.memo(({
           </View>
           <Text style={styles.timelineMemory} numberOfLines={2}>{entry.mockMemory}</Text>
         </View>
-
-        {/* Reorder buttons */}
-        <View style={styles.reorderCol}>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMoveUp(idx); }}
-            hitSlop={{ top: 8, bottom: 4, left: 8, right: 8 }}
-            disabled={!canMoveUp}
-            style={[styles.reorderBtn, !canMoveUp && styles.reorderBtnDisabled]}
-          >
-            <Feather name="chevron-up" size={14} color={canMoveUp ? '#6B7280' : '#E5E7EB'} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMoveDown(idx); }}
-            hitSlop={{ top: 4, bottom: 8, left: 8, right: 8 }}
-            disabled={!canMoveDown}
-            style={[styles.reorderBtn, !canMoveDown && styles.reorderBtnDisabled]}
-          >
-            <Feather name="chevron-down" size={14} color={canMoveDown ? '#6B7280' : '#E5E7EB'} />
-          </TouchableOpacity>
-        </View>
       </TouchableOpacity>
 
       {/* Distance badge */}
@@ -303,16 +332,19 @@ const TimelineItem = React.memo(({
       )}
     </>
   );
-});
+}
 
 // ═══════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════
-export default function JournalTab({ trip, days }: JournalTabProps) {
+export default function JournalTab({ trip, days, onScrollToMap }: JournalTabProps) {
   const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
   const [fullscreenMap, setFullscreenMap] = useState(false);
   const [mapLoading, setMapLoading] = useState(true);
   const [reorderedTimeline, setReorderedTimeline] = useState<TimelineEntry[] | null>(null);
+  const [locatingUser, setLocatingUser] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<{ index: number; entry: TimelineEntry; distFromPrev: string | null } | null>(null);
+  const [navigatingToPlace, setNavigatingToPlace] = useState(false);
 
   const webViewRef = useRef<WebView>(null);
   const fullscreenWebViewRef = useRef<WebView>(null);
@@ -363,6 +395,9 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
   const timeline = reorderedTimeline || baseTimeline;
   const visitedCount = timeline.length;
 
+  // Approx item height for drag calculation
+  const ITEM_HEIGHT = 90;
+
   // Distances between consecutive points
   const distances = useMemo(() => {
     return timeline.slice(0, -1).map((entry, idx) => {
@@ -378,21 +413,109 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
   // Bottom sheet snap points
   const snapPoints = useMemo(() => ['15%', '45%', '85%'], []);
 
-  // ── Reorder handlers ──
-  const handleMoveUp = useCallback((idx: number) => {
-    if (idx <= 0) return;
+  // ── Drag-and-drop handlers ──
+  const handleDragStart = useCallback((_idx: number) => {
+    // Visual feedback handled by PanResponder grant
+  }, []);
+
+  const handleDragEnd = useCallback((fromIdx: number, dy: number) => {
+    // Calculate how many positions to move based on drag distance
+    const steps = Math.round(dy / ITEM_HEIGHT);
+    if (steps === 0) return;
+
+    const toIdx = Math.max(0, Math.min(timeline.length - 1, fromIdx + steps));
+    if (toIdx === fromIdx) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    LayoutAnimation.configureNext(LayoutAnimation.create(250, 'easeInEaseOut', 'opacity'));
     const newTimeline = [...timeline];
-    [newTimeline[idx - 1], newTimeline[idx]] = [newTimeline[idx], newTimeline[idx - 1]];
+    const [removed] = newTimeline.splice(fromIdx, 1);
+    newTimeline.splice(toIdx, 0, removed);
     setReorderedTimeline(newTimeline);
-    setHighlightedIdx(idx - 1);
+    setHighlightedIdx(toIdx);
   }, [timeline]);
 
-  const handleMoveDown = useCallback((idx: number) => {
-    if (idx >= timeline.length - 1) return;
-    const newTimeline = [...timeline];
-    [newTimeline[idx], newTimeline[idx + 1]] = [newTimeline[idx + 1], newTimeline[idx]];
-    setReorderedTimeline(newTimeline);
-    setHighlightedIdx(idx + 1);
+  // ── GPS Location ──
+  const handleMyLocation = useCallback(async (webRef: React.RefObject<WebView | null>) => {
+    try {
+      setLocatingUser(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please enable location services to use this feature.');
+        setLocatingUser(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = loc.coords;
+      webRef.current?.injectJavaScript(`showUserLocation(${latitude}, ${longitude}); true;`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert('Location Error', 'Unable to get your current location.');
+    } finally {
+      setLocatingUser(false);
+    }
+  }, []);
+
+  // ── Directions: get user GPS → open Google Maps ──
+  const handleDirections = useCallback(async (destLat: number, destLng: number, destName: string) => {
+    try {
+      setNavigatingToPlace(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please enable location to get directions.');
+        setNavigatingToPlace(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude: origLat, longitude: origLng } = loc.coords;
+      const url = Platform.select({
+        ios: `maps://app?saddr=${origLat},${origLng}&daddr=${destLat},${destLng}`,
+        android: `https://www.google.com/maps/dir/?api=1&origin=${origLat},${origLng}&destination=${destLat},${destLng}&destination_place_id=&travelmode=driving`,
+      }) || `https://www.google.com/maps/dir/?api=1&origin=${origLat},${origLng}&destination=${destLat},${destLng}`;
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'Unable to open directions.');
+    } finally {
+      setNavigatingToPlace(false);
+    }
+  }, []);
+
+  const handleNavigate = useCallback(async (destLat: number, destLng: number) => {
+    try {
+      setNavigatingToPlace(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Please enable location to navigate.');
+        setNavigatingToPlace(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude: origLat, longitude: origLng } = loc.coords;
+      const url = Platform.select({
+        ios: `maps://app?saddr=${origLat},${origLng}&daddr=${destLat},${destLng}&dirflg=d`,
+        android: `google.navigation:q=${destLat},${destLng}&mode=d`,
+      }) || `https://www.google.com/maps/dir/?api=1&origin=${origLat},${origLng}&destination=${destLat},${destLng}&travelmode=driving`;
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Error', 'Unable to start navigation.');
+    } finally {
+      setNavigatingToPlace(false);
+    }
+  }, []);
+
+  // ── Show direction card for a marker ──
+  const showDirectionCard = useCallback((idx: number) => {
+    const entry = timeline[idx];
+    if (!entry) return;
+    let distFromPrev: string | null = null;
+    if (idx > 0) {
+      const prev = timeline[idx - 1];
+      const km = haversineDistance(prev.latitude, prev.longitude, entry.latitude, entry.longitude);
+      distFromPrev = formatDistance(km) + ' · ' + estimateTravelTime(km);
+    }
+    setSelectedPlace({ index: idx, entry, distFromPrev });
+    setHighlightedIdx(idx);
   }, [timeline]);
 
   // ── Map ↔ Timeline sync ──
@@ -400,21 +523,28 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'markerTap' && typeof data.index === 'number') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setHighlightedIdx(data.index);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        showDirectionCard(data.index);
       }
-    } catch (e) { /* ignore */ }
-  }, []);
+      if (data.type === 'requestLocation') {
+        handleMyLocation(webViewRef);
+      }
+    } catch { /* ignore */ }
+  }, [handleMyLocation, showDirectionCard]);
 
   const handleTimelineTap = useCallback((idx: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setHighlightedIdx(idx);
-    webViewRef.current?.injectJavaScript(`focusMarker(${idx}); true;`);
-  }, []);
+    showDirectionCard(idx);
+    onScrollToMap?.();
+    setTimeout(() => {
+      webViewRef.current?.injectJavaScript(`focusMarker(${idx}); true;`);
+    }, 300);
+  }, [onScrollToMap, showDirectionCard]);
 
   const handleFocusMap = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setHighlightedIdx(null);
+    setSelectedPlace(null);
     webViewRef.current?.injectJavaScript(`fitAllBounds(); true;`);
   }, []);
 
@@ -433,21 +563,22 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
     try {
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'markerTap' && typeof data.index === 'number') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setHighlightedIdx(data.index);
-        // Expand bottom sheet to show the item
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        showDirectionCard(data.index);
         bottomSheetRef.current?.snapToIndex(1);
       }
-    } catch (e) { /* ignore */ }
-  }, []);
+      if (data.type === 'requestLocation') {
+        handleMyLocation(fullscreenWebViewRef);
+      }
+    } catch { /* ignore */ }
+  }, [handleMyLocation, showDirectionCard]);
 
   const handleFullscreenTimelineTap = useCallback((idx: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setHighlightedIdx(idx);
+    showDirectionCard(idx);
     fullscreenWebViewRef.current?.injectJavaScript(`focusMarker(${idx}); true;`);
-    // Collapse sheet to see map
     bottomSheetRef.current?.snapToIndex(0);
-  }, []);
+  }, [showDirectionCard]);
 
   return (
     <View style={styles.container}>
@@ -501,6 +632,19 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
             startInLoadingState={false}
           />
 
+          {/* My Location floating button */}
+          <TouchableOpacity
+            style={styles.myLocationBtn}
+            onPress={() => handleMyLocation(webViewRef)}
+            activeOpacity={0.8}
+            disabled={locatingUser}
+          >
+            {locatingUser
+              ? <ActivityIndicator size="small" color={BRAND} />
+              : <Feather name="crosshair" size={16} color={BRAND} />
+            }
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.recenterBtn}
             onPress={handleFocusMap}
@@ -508,6 +652,69 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
           >
             <Feather name="navigation" size={15} color={BRAND} />
           </TouchableOpacity>
+
+          {/* ── Direction Bottom Card (Grab-style) ── */}
+          {selectedPlace && (
+            <View style={styles.directionCard}>
+              <TouchableOpacity
+                style={styles.directionCardClose}
+                onPress={() => setSelectedPlace(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={14} color="#9CA3AF" />
+              </TouchableOpacity>
+
+              <View style={styles.directionCardContent}>
+                {selectedPlace.entry.photo ? (
+                  <Image source={{ uri: selectedPlace.entry.photo }} style={styles.directionCardImg} />
+                ) : (
+                  <View style={[styles.directionCardImg, styles.directionCardImgPlaceholder]}>
+                    <Feather name="map-pin" size={18} color="#9CA3AF" />
+                  </View>
+                )}
+                <View style={styles.directionCardInfo}>
+                  <Text style={styles.directionCardName} numberOfLines={1}>{selectedPlace.entry.name}</Text>
+                  <View style={styles.directionCardMeta}>
+                    <Feather name="clock" size={10} color="#9CA3AF" />
+                    <Text style={styles.directionCardMetaText}>{selectedPlace.entry.mockTime}</Text>
+                  </View>
+                  {selectedPlace.distFromPrev && (
+                    <View style={styles.directionCardMeta}>
+                      <Feather name="navigation" size={10} color={BRAND} />
+                      <Text style={[styles.directionCardMetaText, { color: BRAND, fontWeight: '600' }]}>
+                        {selectedPlace.distFromPrev} from prev
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View style={styles.directionCardBtns}>
+                <TouchableOpacity
+                  style={styles.directionBtn}
+                  onPress={() => handleDirections(selectedPlace.entry.latitude, selectedPlace.entry.longitude, selectedPlace.entry.name)}
+                  activeOpacity={0.8}
+                  disabled={navigatingToPlace}
+                >
+                  {navigatingToPlace
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Feather name="map" size={14} color="#FFF" />
+                  }
+                  <Text style={styles.directionBtnText}>Directions</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.directionBtn, styles.navigateBtn]}
+                  onPress={() => handleNavigate(selectedPlace.entry.latitude, selectedPlace.entry.longitude)}
+                  activeOpacity={0.8}
+                  disabled={navigatingToPlace}
+                >
+                  <Feather name="navigation" size={14} color={BRAND} />
+                  <Text style={[styles.directionBtnText, styles.navigateBtnText]}>Navigate</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -519,10 +726,14 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
             {reorderedTimeline && (
               <TouchableOpacity
                 style={styles.resetBtn}
-                onPress={() => { setReorderedTimeline(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                onPress={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setReorderedTimeline(null);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
                 activeOpacity={0.7}
               >
-                <Feather name="rotate-ccw" size={12} color="#9CA3AF" />
+                <Feather name="rotate-ccw" size={12} color="#EF4444" />
                 <Text style={styles.resetBtnText}>Reset</Text>
               </TouchableOpacity>
             )}
@@ -530,9 +741,13 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
           </View>
         </View>
 
+        <Text style={styles.dragHint}>
+          <Feather name="info" size={11} color="#9CA3AF" /> Drag ≡ handle to reorder
+        </Text>
+
         <View style={styles.timelineList}>
           {timeline.map((entry, idx) => (
-            <TimelineItem
+            <DraggableTimelineItem
               key={entry.id}
               entry={entry}
               idx={idx}
@@ -540,10 +755,9 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
               isLast={idx === timeline.length - 1}
               dist={idx < distances.length ? distances[idx] : null}
               onTap={handleTimelineTap}
-              onMoveUp={handleMoveUp}
-              onMoveDown={handleMoveDown}
-              canMoveUp={idx > 0}
-              canMoveDown={idx < timeline.length - 1}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              itemHeight={ITEM_HEIGHT}
             />
           ))}
         </View>
@@ -571,26 +785,99 @@ export default function JournalTab({ trip, days }: JournalTabProps) {
             onMessage={handleFullscreenMessage}
           />
 
-          {/* Close button */}
-          <TouchableOpacity
-            style={styles.fullscreenClose}
-            onPress={closeFullscreen}
-            activeOpacity={0.8}
-          >
-            <Feather name="x" size={20} color="#1A1A1A" />
-          </TouchableOpacity>
+          {/* Top controls */}
+          <View style={styles.fullscreenTopBar}>
+            <TouchableOpacity
+              style={styles.fullscreenTopBtn}
+              onPress={closeFullscreen}
+              activeOpacity={0.8}
+            >
+              <Feather name="x" size={20} color="#1A1A1A" />
+            </TouchableOpacity>
 
-          {/* Re-center */}
-          <TouchableOpacity
-            style={styles.fullscreenRecenterBtn}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              fullscreenWebViewRef.current?.injectJavaScript(`fitAllBounds(); true;`);
-            }}
-            activeOpacity={0.8}
-          >
-            <Feather name="navigation" size={16} color={BRAND} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fullscreenTopBtn}
+              onPress={() => handleMyLocation(fullscreenWebViewRef)}
+              activeOpacity={0.8}
+              disabled={locatingUser}
+            >
+              {locatingUser
+                ? <ActivityIndicator size="small" color={BRAND} />
+                : <Feather name="crosshair" size={18} color={BRAND} />
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.fullscreenTopBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                fullscreenWebViewRef.current?.injectJavaScript(`fitAllBounds(); true;`);
+              }}
+              activeOpacity={0.8}
+            >
+              <Feather name="navigation" size={18} color={BRAND} />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Fullscreen Direction Card ── */}
+          {selectedPlace && (
+            <View style={[styles.directionCard, { bottom: 280, left: 12, right: 12 }]}>
+              <TouchableOpacity
+                style={styles.directionCardClose}
+                onPress={() => setSelectedPlace(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Feather name="x" size={14} color="#9CA3AF" />
+              </TouchableOpacity>
+              <View style={styles.directionCardContent}>
+                {selectedPlace.entry.photo ? (
+                  <Image source={{ uri: selectedPlace.entry.photo }} style={styles.directionCardImg} />
+                ) : (
+                  <View style={[styles.directionCardImg, styles.directionCardImgPlaceholder]}>
+                    <Feather name="map-pin" size={18} color="#9CA3AF" />
+                  </View>
+                )}
+                <View style={styles.directionCardInfo}>
+                  <Text style={styles.directionCardName} numberOfLines={1}>{selectedPlace.entry.name}</Text>
+                  <View style={styles.directionCardMeta}>
+                    <Feather name="clock" size={10} color="#9CA3AF" />
+                    <Text style={styles.directionCardMetaText}>{selectedPlace.entry.mockTime}</Text>
+                  </View>
+                  {selectedPlace.distFromPrev && (
+                    <View style={styles.directionCardMeta}>
+                      <Feather name="navigation" size={10} color={BRAND} />
+                      <Text style={[styles.directionCardMetaText, { color: BRAND, fontWeight: '600' }]}>
+                        {selectedPlace.distFromPrev} from prev
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <View style={styles.directionCardBtns}>
+                <TouchableOpacity
+                  style={styles.directionBtn}
+                  onPress={() => handleDirections(selectedPlace.entry.latitude, selectedPlace.entry.longitude, selectedPlace.entry.name)}
+                  activeOpacity={0.8}
+                  disabled={navigatingToPlace}
+                >
+                  {navigatingToPlace
+                    ? <ActivityIndicator size="small" color="#FFF" />
+                    : <Feather name="map" size={14} color="#FFF" />
+                  }
+                  <Text style={styles.directionBtnText}>Directions</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.directionBtn, styles.navigateBtn]}
+                  onPress={() => handleNavigate(selectedPlace.entry.latitude, selectedPlace.entry.longitude)}
+                  activeOpacity={0.8}
+                  disabled={navigatingToPlace}
+                >
+                  <Feather name="navigation" size={14} color={BRAND} />
+                  <Text style={[styles.directionBtnText, styles.navigateBtnText]}>Navigate</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Bottom Sheet — draggable timeline */}
           <BottomSheet
@@ -712,6 +999,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center', gap: 8,
   },
   mapLoadingText: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
+  myLocationBtn: {
+    position: 'absolute', bottom: 56, right: 12,
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)', justifyContent: 'center', alignItems: 'center',
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6 },
+      android: { elevation: 4 },
+    }),
+  },
   recenterBtn: {
     position: 'absolute', bottom: 12, right: 12,
     width: 38, height: 38, borderRadius: 12,
@@ -725,7 +1021,7 @@ const styles = StyleSheet.create({
   /* ── Timeline Section ── */
   timelineSection: { marginHorizontal: 16, marginTop: 20 },
   timelineHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
   },
   timelineHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   timelineTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
@@ -738,12 +1034,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF2F2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
   },
   resetBtnText: { fontSize: 11, fontWeight: '600', color: '#EF4444' },
+  dragHint: { fontSize: 11, color: '#9CA3AF', marginBottom: 10 },
   timelineList: { gap: 0 },
 
   /* ── Timeline Item ── */
   timelineItem: {
-    flexDirection: 'row', gap: 10,
-    paddingVertical: 12, paddingLeft: 12, paddingRight: 8,
+    flexDirection: 'row', gap: 8,
+    paddingVertical: 12, paddingLeft: 4, paddingRight: 12,
     backgroundColor: '#FFF', borderRadius: 14,
     borderWidth: 1, borderColor: '#F3F4F6',
     alignItems: 'center',
@@ -759,6 +1056,13 @@ const styles = StyleSheet.create({
       android: { elevation: 3 },
     }),
   },
+
+  /* ── Drag Handle ── */
+  dragHandle: {
+    width: 28, height: 44,
+    justifyContent: 'center', alignItems: 'center',
+  },
+
   timelineStepCol: { alignItems: 'center', width: 28 },
   timelineStepDot: {
     width: 28, height: 28, borderRadius: 14,
@@ -777,14 +1081,6 @@ const styles = StyleSheet.create({
   timelineMetaText: { fontSize: 12, color: '#9CA3AF' },
   timelineMemory: { fontSize: 12, color: '#6B7280', lineHeight: 17, marginTop: 1 },
 
-  /* ── Reorder Buttons ── */
-  reorderCol: { justifyContent: 'center', alignItems: 'center', gap: 2, paddingLeft: 2 },
-  reorderBtn: {
-    width: 24, height: 24, borderRadius: 6,
-    backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center',
-  },
-  reorderBtnDisabled: { opacity: 0.4 },
-
   /* ── Distance Badge ── */
   distanceBadge: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4, gap: 8,
@@ -797,21 +1093,46 @@ const styles = StyleSheet.create({
   },
   distanceText: { fontSize: 11, fontWeight: '600', color: '#6B7280' },
 
+  /* ── Direction Bottom Card ── */
+  directionCard: {
+    position: 'absolute', bottom: 8, left: 8, right: 8,
+    backgroundColor: '#FFF', borderRadius: 16,
+    padding: 14, gap: 12, zIndex: 20,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.12, shadowRadius: 10 },
+      android: { elevation: 8 },
+    }),
+  },
+  directionCardClose: {
+    position: 'absolute', top: 10, right: 10, zIndex: 2,
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center',
+  },
+  directionCardContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  directionCardImg: { width: 52, height: 52, borderRadius: 12 },
+  directionCardImgPlaceholder: { backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  directionCardInfo: { flex: 1, gap: 3 },
+  directionCardName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  directionCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  directionCardMetaText: { fontSize: 11, color: '#9CA3AF' },
+  directionCardBtns: { flexDirection: 'row', gap: 10 },
+  directionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: BRAND, paddingVertical: 10, borderRadius: 12,
+  },
+  directionBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  navigateBtn: { backgroundColor: '#F0F4FF', borderWidth: 1, borderColor: BRAND },
+  navigateBtnText: { color: BRAND },
+
   /* ── Fullscreen ── */
   fullscreenContainer: { flex: 1, backgroundColor: '#000' },
   fullscreenMap: { flex: 1 },
-  fullscreenClose: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 40, right: 16,
-    width: 40, height: 40, borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.95)', justifyContent: 'center', alignItems: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8 },
-      android: { elevation: 6 },
-    }),
+  fullscreenTopBar: {
+    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 40,
+    right: 16, flexDirection: 'column', gap: 10,
   },
-  fullscreenRecenterBtn: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 40, right: 68,
-    width: 40, height: 40, borderRadius: 14,
+  fullscreenTopBtn: {
+    width: 42, height: 42, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.95)', justifyContent: 'center', alignItems: 'center',
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8 },

@@ -462,18 +462,15 @@ export default function ExploreTab({ trip, days }: ExploreTabProps) {
 
   return (
     <>
-      <FlatList
-        data={loading ? [] : places}
-        keyExtractor={item => item.placeId}
-        renderItem={renderPlaceCard}
-        ListHeaderComponent={renderListHeader}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={BRAND} />
-        }
-      />
+      <View style={styles.listContent}>
+        {renderListHeader()}
+        {!loading && places.length === 0 && renderEmpty()}
+        {!loading && places.length > 0 && places.map((item) => (
+          <React.Fragment key={item.placeId}>
+            {renderPlaceCard({ item })}
+          </React.Fragment>
+        ))}
+      </View>
 
       {/* ═══ Day Picker Modal ═══ */}
       <Modal visible={showDayPicker} transparent animationType="fade" onRequestClose={() => setShowDayPicker(false)}>

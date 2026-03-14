@@ -48,6 +48,11 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<Animated.LegacyRef<any>>(null) as any;
+
+  const handleScrollToMap = useCallback(() => {
+    scrollViewRef.current?.scrollTo?.({ y: 0, animated: true });
+  }, []);
 
   const [activeTab, setActiveTab] = useState('summary');
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -145,7 +150,7 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
           <ExploreTab trip={trip} days={days} />
         </View>
         <View style={{ display: activeTab === 'journal' ? 'flex' : 'none' }}>
-          <JournalTab trip={trip} days={days} />
+          <JournalTab trip={trip} days={days} onScrollToMap={handleScrollToMap} />
         </View>
       </>
     );
@@ -224,6 +229,7 @@ export default function TripDetailScreen({ tripId }: { tripId: string }) {
 
       {/* ===== CONTENT — useNativeDriver: true ===== */}
       <Animated.ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

@@ -176,23 +176,22 @@ export default function AccommodationTab({ trip }: AccommodationTabProps) {
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={accommodations}
-        keyExtractor={(item) => item.id}
-        renderItem={renderHotelCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Feather name="home" size={44} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Accommodations</Text>
-            <Text style={styles.emptySubtitle}>
-              No places to stay found. Try again later.
-            </Text>
-          </View>
-        }
-      />
+    <View style={[styles.container, styles.listContent]}>
+      {accommodations.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Feather name="home" size={44} color="#D1D5DB" />
+          <Text style={styles.emptyTitle}>No Accommodations</Text>
+          <Text style={styles.emptySubtitle}>
+            No places to stay found. Try again later.
+          </Text>
+        </View>
+      ) : (
+        accommodations.map((item) => (
+          <React.Fragment key={item.id}>
+            {renderHotelCard({ item })}
+          </React.Fragment>
+        ))
+      )}
 
       {/* Calendar Modal */}
       {selectedHotel && (
