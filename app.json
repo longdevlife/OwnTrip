@@ -13,7 +13,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.khoale3004.owntrip"
+      "bundleIdentifier": "com.khoale3004.owntrip",
+      "config": {
+        "googleMapsApiKey": "AIzaSyDJe6vKECRNVew2g9EHKedjj65EimJ18FI"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +25,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDJe6vKECRNVew2g9EHKedjj65EimJ18FI"
+        }
+      }
     },
     "web": {
       "output": "static",

@@ -25,6 +25,7 @@ export const ENDPOINTS = {
     CREATE: '/api/trips',
     UPDATE: (id: string) => `/api/trips/${id}`,
     DELETE: (id: string) => `/api/trips/${id}`,
+    DESTINATIONS: (id: string) => `/api/trips/${id}/destinations`,
     PUBLISH: (id: string) => `/api/trips/${id}/publish`,
   },
   PLACES: {
@@ -32,6 +33,10 @@ export const ENDPOINTS = {
     NEARBY: '/api/places/nearby',
     TEXT_SEARCH: '/api/places/text',
     PHOTO: '/api/places/photo',
+  },
+  PLANS: {
+    ADD_PLACE: (dayId: string) => `/api/plans/day/${dayId}/place`,
+    REMOVE_PLACE: (dayId: string, placeId: string) => `/api/plans/day/${dayId}/place/${placeId}`,
   },
   CHATBOT: {
     CHAT: '/api/chatbot/chat',
