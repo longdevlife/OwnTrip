@@ -39,7 +39,7 @@ export const placesService = {
    * GET /api/places/text?q=vui choi&q=phu quoc&limit=50&photoLimit=5
    */
   searchTrending: async (
-    queries: string[] = ['vui choi', 'phu quoc', 'nha trang', 'vung tau']
+    queries: string[] = ['núi bà đen', 'hồ tuyền lâm', 'bãi sau', 'chùa bửu long', 'khu du lịch']
   ): Promise<Place[]> => {
     try {
       const qs = queries
@@ -51,8 +51,8 @@ export const placesService = {
       const response = await axiosClient.get<any, PlacesResponse>(url);
 
       return response?.places ?? [];
-    } catch (error) {
-      console.error('Error fetching trending places. Using mock data:', error);
+    } catch {
+      console.warn('⚠️ Trending API unavailable, using fallback data');
       // Fallback data
       return [
         {
@@ -112,16 +112,11 @@ export const placesService = {
    * GET /api/places/search?q=cafe dalat
    */
   search: async (query: string): Promise<Place[]> => {
-    try {
-      const response = await axiosClient.get<any, SearchResponse>(
-        ENDPOINTS.PLACES.SEARCH,
-        { params: { q: query } }
-      );
-      return response?.places ?? [];
-    } catch (error) {
-      console.error('Error searching places:', error);
-      return [];
-    }
+    const response = await axiosClient.get<any, SearchResponse>(
+      ENDPOINTS.PLACES.SEARCH,
+      { params: { q: query } }
+    );
+    return response?.places ?? [];
   },
 
   /**

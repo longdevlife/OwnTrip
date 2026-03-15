@@ -25,14 +25,23 @@ axiosClient.interceptors.request.use(
 // Response Interceptor: Tự lấy .data, bắt lỗi chung
 axiosClient.interceptors.response.use(
   (response) => response.data,
-  (error) => {
+  async (error) => {
     if (error.response) {
       const { status, data } = error.response;
-      console.error(`API Error [${status}]:`, data);
 
-      if (status === 401) {
-        console.warn('Token hết hạn!');
-        // TODO: Redirect về login hoặc refresh token
+      if (status === 429) {
+        // API quota hết — chỉ warn, không error đỏ
+        console.warn(`⚠️ API quota exceeded [429]:`, data?.message || 'Rate limited');
+      } else if (status === 401 || status === 403) {
+        console.warn('🔒 Token hết hạn hoặc bị từ chối! Đang xóa token...');
+        try {
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+          await AsyncStorage.removeItem('token');
+        } catch (e) {
+          console.error('Error clearing token:', e);
+        }
+      } else {
+        console.error(`API Error [${status}]:`, data);
       }
     } else if (error.request) {
       console.error('Lỗi mạng: Không nhận được phản hồi từ server');
