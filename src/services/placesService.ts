@@ -39,7 +39,7 @@ export const placesService = {
    * GET /api/places/text?q=vui choi&q=phu quoc&limit=50&photoLimit=5
    */
   searchTrending: async (
-    queries: string[] = ['vui choi', 'phu quoc', 'nha trang', 'vung tau']
+    queries: string[] = ['núi bà đen', 'hồ tuyền lâm', 'bãi sau', 'chùa bửu long', 'khu du lịch']
   ): Promise<Place[]> => {
     try {
       const qs = queries

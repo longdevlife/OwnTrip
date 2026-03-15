@@ -175,7 +175,7 @@ export default function CreateTripScreen() {
         </View>
         
         <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>New Adventure</Text>
+          <Text style={styles.headerTitle}>Hành trình mới</Text>
           <Text style={styles.headerSubTitle}>Lên kế hoạch cho hành trình tiếp theo của bạn</Text>
         </View>
       </View>

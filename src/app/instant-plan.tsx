@@ -54,9 +54,9 @@ export default function InstantPlanScreen() {
         <View style={styles.titleContainer}>
           <View style={styles.aiBadgeContainer}>
             <Feather name="star" size={12} color="#FFF" />
-            <Text style={styles.aiBadgeText}>AI POWERED</Text>
+            <Text style={styles.aiBadgeText}>CÔNG NGHỆ AI</Text>
           </View>
-          <Text style={styles.mainTitle}>What's your plan?</Text>
+          <Text style={styles.mainTitle}>Dự định của bạn là gì?</Text>
           <Text style={styles.subTitle}>Khởi tạo hành trình trong mơ của bạn chỉ với một chạm</Text>
         </View>
 
@@ -77,7 +77,7 @@ export default function InstantPlanScreen() {
             <View style={styles.cardContent}>
               <View style={styles.textSection}>
                 <View style={styles.featuredRow}>
-                  <Text style={styles.cardTitle}>Plan your trip</Text>
+                  <Text style={styles.cardTitle}>Lên kế hoạch</Text>
                   <View style={styles.newTag}><Text style={styles.newTagText}>PRO</Text></View>
                 </View>
                 <Text style={styles.cardDescription}>
@@ -108,7 +108,7 @@ export default function InstantPlanScreen() {
             <View style={styles.glassInner} />
             <View style={styles.cardContent}>
               <View style={styles.textSection}>
-                <Text style={styles.cardTitle}>Travel Guide</Text>
+                <Text style={styles.cardTitle}>Cẩm nang du lịch</Text>
                 <Text style={styles.cardDescription}>
                    Viết hướng dẫn bỏ túi và chia sẻ khoảnh khắc đẹp.
                 </Text>

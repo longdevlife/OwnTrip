@@ -168,4 +168,16 @@ export const tripService = {
       throw error;
     }
   },
+
+  publishTrip: async (id: string): Promise<boolean> => {
+    try {
+      const response = await axiosClient.patch<any, any>(ENDPOINTS.TRIPS.PUBLISH(id), {
+        isPublished: true
+      });
+      return response?.success ?? false;
+    } catch (error) {
+      console.error(`Error publishing trip ${id}:`, error);
+      return false;
+    }
+  },
 };

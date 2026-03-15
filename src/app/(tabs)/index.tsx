@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,18 +6,25 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  ImageBackground,
   TouchableOpacity,
   ActivityIndicator,
   Modal,
   Dimensions,
   Linking,
   Animated,
+  TextInput,
+  FlatList,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Image as ExpoImage } from 'expo-image';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { placesService, Place } from '../../services/placesService';
 import { tripService, Trip, TripDetailResponse } from '../../services/tripService';
+import { userService, UserProfile } from '../../services/userService';
+import { getImageSource } from '../../utils/imageUtils';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -30,26 +37,39 @@ export default function HomeScreen() {
 
   const [selectedTripDetail, setSelectedTripDetail] = useState<TripDetailResponse | null>(null);
   const [loadingTripDetail, setLoadingTripDetail] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const { width } = Dimensions.get('window');
   
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<any>(null);
   const [isLooping, setIsLooping] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Place[]>([]);
+  const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
+  const [isSearchingResults, setIsSearchingResults] = useState(false);
 
   const ITEM_WIDTH = width * 0.65;
   const ITEM_SPACING = 0;
   const ITEM_SIZE = ITEM_WIDTH + ITEM_SPACING;
   const SPACER_SIZE = (width - ITEM_WIDTH) / 2;
 
-  useEffect(() => {
-    const fetchTrending = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      const fetchTrending = async () => {
       try {
         setLoading(true);
         const places = await placesService.searchTrending();
+        
+        // Strictly filter: Must have BOTH 'photo' AND 'photos' array populated
+        const placesWithPhotos = (places || []).filter(p => 
+          p.photo && p.photo.trim() !== '' && 
+          p.photos && p.photos.length > 0
+        );
+
         // Để làm loop vô tận ảo, ta nhân 3 mảng dữ liệu (Triple buffer)
-        if (places && places.length > 0) {
-          setTrendingPlaces([...places, ...places, ...places]);
+        if (placesWithPhotos.length > 0) {
+          setTrendingPlaces([...placesWithPhotos, ...placesWithPhotos, ...placesWithPhotos]);
           setIsLooping(true);
         } else {
           setTrendingPlaces([]);
@@ -63,23 +83,66 @@ export default function HomeScreen() {
       try {
         setLoadingTrips(true);
         const trips = await tripService.getPublishedTrips(1, 10);
-        setRecommendedTrips(trips);
+        // Strictly filter: Only keep trips with images
+        const tripsWithImages = (trips || []).filter(t => getImageSource(t.provinceImage) !== null);
+        setRecommendedTrips(tripsWithImages);
       } finally {
         setLoadingTrips(false);
       }
     };
 
+    const fetchUserInfo = async () => {
+      try {
+        const userId = await AsyncStorage.getItem('userId');
+        if (userId) {
+          const profile = await userService.getMyProfile(userId);
+          if (profile) {
+            setUserProfile(profile);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user info in Home:', error);
+      }
+    };
+
     fetchTrending();
     fetchTrips();
-  }, []);
+    fetchUserInfo();
+  }, [])
+  );
 
   const handleTripPress = async (id: string) => {
     setLoadingTripDetail(true);
-    const detail = await tripService.getTripById(id);
-    if (detail) {
-      setSelectedTripDetail(detail);
+    try {
+      const detail = await tripService.getTripById(id);
+      if (detail) {
+        setSelectedTripDetail(detail);
+      }
+    } finally {
+      setLoadingTripDetail(false);
     }
-    setLoadingTripDetail(false);
+  };
+
+  const handleSearch = async (text: string) => {
+    setSearchQuery(text);
+    if (!text.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setIsSearchingResults(true);
+    try {
+      const results = await placesService.searchText({ q: text, limit: 10 });
+      const filtered = (results || []).filter(p => 
+        p.photo && p.photo.trim() !== '' && 
+        p.photos && p.photos.length > 0
+      );
+      setSearchResults(filtered);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsSearchingResults(false);
+    }
   };
 
   return (
@@ -93,13 +156,13 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good morning 👋</Text>
-            <Text style={styles.headerTitle}>Discover</Text>
+            <Text style={styles.greeting}>Chào {userProfile?.displayName || 'bạn'} 👋</Text>
+            <Text style={styles.headerTitle}>Khám phá</Text>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.pointsBadge}>
               <Feather name="award" size={16} color="#48BB78" />
-              <Text style={styles.pointsText}>2,450</Text>
+              <Text style={styles.pointsText}>{userProfile?.points?.toLocaleString() || '0'}</Text>
             </View>
             <View style={styles.notifButton}>
               <Feather name="bell" size={20} color="#1A2B4A" />
@@ -109,34 +172,44 @@ export default function HomeScreen() {
         </View>
 
         {/* Search */}
-        <View style={styles.searchBar}>
+        <TouchableOpacity 
+          style={styles.searchBar} 
+          activeOpacity={0.8}
+          onPress={() => setIsSearchModalVisible(true)}
+        >
           <Feather name="search" size={18} color="#A0AEC0" />
-          <Text style={styles.searchPlaceholder}>Search destinations...</Text>
-        </View>
+          <Text style={styles.searchPlaceholder}>Tìm kiếm điểm đến...</Text>
+        </TouchableOpacity>
 
         {/* Banner */}
-        <View style={styles.banner}>
-          <Text style={styles.bannerTitle}>Where to{'\n'}next?</Text>
-          <Text style={styles.bannerSubtitle}>Instantly generate a personalized dream trip.</Text>
-          <TouchableOpacity 
-            style={styles.bannerButton}
-            onPress={() => router.push('/instant-plan')}
-          >
-            <Feather name="zap" size={16} color="#FFFFFF" />
-            <Text style={styles.bannerButtonText}>Instant Plan</Text>
-          </TouchableOpacity>
-        </View>
+        <ImageBackground 
+          source={getImageSource('https://logico.com.vn/upload_images/images/2022/11/30/hinh-nen-dep-7.jpg')}
+          style={styles.banner}
+          imageStyle={styles.bannerImage}
+        >
+          <View style={styles.bannerOverlay}>
+            <Text style={styles.bannerTitle}>Đi đâu{'\n'}tiếp theo?</Text>
+            <Text style={styles.bannerSubtitle}>Tạo ngay lịch trình du lịch dành riêng cho bạn.</Text>
+            <TouchableOpacity 
+              style={styles.bannerButton}
+              onPress={() => router.push('/instant-plan')}
+            >
+              <Feather name="zap" size={16} color="#FFFFFF" />
+              <Text style={styles.bannerButtonText}>Lên lịch ngay</Text>
+            </TouchableOpacity>
+          </View>
+        </ImageBackground>
 
-        {/* Trending Now */}
+        {/* Địa điểm thịnh hành */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trending Now</Text>
-          <Text style={styles.viewAll}>View all &gt;</Text>
+          <Text style={styles.sectionTitle}>Địa điểm thịnh hành</Text>
+          <Text style={styles.viewAll}>Xem tất cả &gt;</Text>
         </View>
 
         {loading ? (
           <ActivityIndicator size="large" color="#4A7CFF" style={{ paddingVertical: 40 }} />
         ) : trendingPlaces.length === 0 ? (
-          <Text style={styles.comingSoon}>No trending places found.</Text>
+          <Text style={styles.comingSoon}>Không tìm thấy địa điểm thịnh hành nào.</Text>
         ) : (
           <View style={{ marginHorizontal: -20 }}>
             <Animated.ScrollView
@@ -215,9 +288,11 @@ export default function HomeScreen() {
                   >
                     <View style={styles.trendingImageWrapper}>
                       {place.photo ? (
-                        <Image
-                          source={{ uri: place.photo }}
+                        <ExpoImage
+                          source={getImageSource(place.photo)}
                           style={styles.trendingImage}
+                          contentFit="cover"
+                          transition={300}
                         />
                       ) : (
                         <View style={styles.trendingImagePlaceholder}>
@@ -251,16 +326,16 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Recommended Plans */}
+        {/* Lịch trình gợi ý */}
         <View style={[styles.sectionHeader, { marginTop: 32 }]}>
-          <Text style={styles.sectionTitle}>Recommended Plans</Text>
-          <Text style={styles.viewAll}>View all &gt;</Text>
+          <Text style={styles.sectionTitle}>Lịch trình gợi ý</Text>
+          <Text style={styles.viewAll}>Xem tất cả &gt;</Text>
         </View>
 
         {loadingTrips ? (
           <ActivityIndicator size="large" color="#4A7CFF" style={{ paddingVertical: 40 }} />
         ) : recommendedTrips.length === 0 ? (
-          <Text style={styles.comingSoon}>No recommended plans found.</Text>
+          <Text style={styles.comingSoon}>Không tìm thấy lịch trình gợi ý nào.</Text>
         ) : (
           <View style={styles.tripsList}>
             {recommendedTrips.map((trip) => (
@@ -270,15 +345,17 @@ export default function HomeScreen() {
                 activeOpacity={0.9} 
                 onPress={() => handleTripPress(trip._id)}
               >
-                <Image
-                  source={{ uri: trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800' }}
+                <ExpoImage
+                  source={getImageSource(trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800')}
                   style={styles.tripImage}
+                  contentFit="cover"
+                  transition={300}
                 />
                 
                 {/* Gradient-like Overlay for text legibility */}
                 <View style={styles.tripOverlay}>
                   <View style={styles.tripBadge}>
-                    <Text style={styles.tripBadgeText}>{trip.totalDays} Days</Text>
+                    <Text style={styles.tripBadgeText}>{trip.totalDays} Ngày</Text>
                   </View>
                   
                   <View style={styles.tripInfo}>
@@ -319,11 +396,11 @@ export default function HomeScreen() {
                       }}
                     >
                       {selectedPlace.photos.map((photoUrl, index) => (
-                        <Image key={index} source={{ uri: photoUrl }} style={[styles.modalImage, { width }]} />
+                        <ExpoImage key={index} source={getImageSource(photoUrl)} style={[styles.modalImage, { width }]} contentFit="cover" />
                       ))}
                     </ScrollView>
                   ) : selectedPlace.photo ? (
-                    <Image source={{ uri: selectedPlace.photo }} style={[styles.modalImage, { width }]} />
+                    <ExpoImage source={getImageSource(selectedPlace.photo)} style={[styles.modalImage, { width }]} contentFit="cover" />
                   ) : (
                     <View style={[styles.modalImage, styles.modalImagePlaceholder, { width }]}>
                       <Feather name="image" size={48} color="#CBD5E0" />
@@ -370,7 +447,7 @@ export default function HomeScreen() {
                     <View style={styles.statItem}>
                       <Feather name="camera" size={16} color="#4A7CFF" />
                       <Text style={styles.statValue}>{selectedPlace.photos?.length || 1}</Text>
-                      <Text style={styles.statLabel}>Photos</Text>
+                      <Text style={styles.statLabel}>Ảnh</Text>
                     </View>
                   </View>
 
@@ -414,13 +491,13 @@ export default function HomeScreen() {
             {loadingTripDetail ? (
               <View style={{ padding: 40, alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#4A7CFF" />
-                <Text style={{ marginTop: 16, color: '#718096', fontWeight: '500' }}>Loading plan...</Text>
+                <Text style={{ marginTop: 16, color: '#718096', fontWeight: '500' }}>Đang tải lịch trình...</Text>
               </View>
             ) : selectedTripDetail && (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
                 {/* Header Image */}
                 <View style={[styles.modalGallery, { height: 260 }]}>
-                  <Image source={{ uri: selectedTripDetail.trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800' }} style={[styles.modalImage, { width, height: 260 }]} />
+                  <ExpoImage source={getImageSource(selectedTripDetail.trip.provinceImage || 'https://images.unsplash.com/photo-1503220317375-aaad61436b1b?auto=format&fit=crop&q=80&w=800')} style={[styles.modalImage, { width, height: 260 }]} contentFit="cover" />
                   <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSelectedTripDetail(null)}>
                     <Feather name="x" size={24} color="#FFF" />
                   </TouchableOpacity>
@@ -510,6 +587,102 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* Search Modal */}
+      <Modal 
+        visible={isSearchModalVisible} 
+        animationType="fade" 
+        transparent={false}
+        onRequestClose={() => setIsSearchModalVisible(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFBFC' }}>
+          <View style={styles.searchModalHeader}>
+            <TouchableOpacity 
+              style={styles.searchModalBack} 
+              onPress={() => {
+                setIsSearchModalVisible(false);
+                setSearchQuery('');
+                setSearchResults([]);
+              }}
+            >
+              <Feather name="arrow-left" size={24} color="#1A2B4A" />
+            </TouchableOpacity>
+            <View style={styles.searchModalInputWrapper}>
+              <Feather name="search" size={18} color="#A0AEC0" style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.searchModalInput}
+                placeholder="Bạn muốn đi đâu?"
+                placeholderTextColor="#A0AEC0"
+                value={searchQuery}
+                onChangeText={handleSearch}
+                autoFocus
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => handleSearch('')}>
+                  <Feather name="x-circle" size={18} color="#CBD5E0" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {isSearchingResults ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#4A7CFF" />
+            </View>
+          ) : searchResults.length > 0 ? (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.placeId}
+              contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.searchResultCard}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setIsSearchModalVisible(false);
+                    setSelectedPlace(item);
+                  }}
+                >
+                  <ExpoImage 
+                    source={getImageSource(item.photo)} 
+                    style={styles.searchResultImage} 
+                    contentFit="cover"
+                  />
+                  <View style={styles.searchResultInfo}>
+                    <Text style={styles.searchResultName} numberOfLines={1}>{item.name}</Text>
+                    <View style={styles.searchResultLocation}>
+                      <Feather name="map-pin" size={12} color="#A0AEC0" />
+                      <Text style={styles.searchResultAddress} numberOfLines={1}>{item.address}</Text>
+                    </View>
+                    <View style={styles.searchResultFooter}>
+                      <View style={styles.searchResultRating}>
+                        <Feather name="star" size={12} color="#ECC94B" fill="#ECC94B" />
+                        <Text style={styles.searchResultRatingText}>{item.rating || 'N/A'}</Text>
+                      </View>
+                      <Text style={styles.searchResultLink}>Chi tiết →</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+          ) : searchQuery.length > 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+              <Feather name="frown" size={48} color="#CBD5E0" />
+              <Text style={{ marginTop: 16, fontSize: 16, color: '#718096', textAlign: 'center' }}>
+                Không tìm thấy địa điểm nào khớp với "{searchQuery}"
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
+              <Feather name="map" size={48} color="#E2E8F0" />
+              <Text style={{ marginTop: 16, fontSize: 16, color: '#A0AEC0', textAlign: 'center' }}>
+                Nhập tên địa danh bạn muốn đến...
+              </Text>
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -570,13 +743,19 @@ const styles = StyleSheet.create({
 
   // Banner
   banner: {
-    backgroundColor: '#1A2B4A',
     borderRadius: 20,
-    padding: 24,
     marginBottom: 24,
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    resizeMode: 'cover',
+  },
+  bannerOverlay: {
+    backgroundColor: 'rgba(26, 43, 74, 0.65)',
+    padding: 24,
   },
   bannerTitle: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
-  bannerSubtitle: { fontSize: 14, color: '#CBD5E0', marginBottom: 16, lineHeight: 20 },
+  bannerSubtitle: { fontSize: 14, color: '#FFFFFF', marginBottom: 16, lineHeight: 20, fontWeight: '500' },
   bannerButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1086,5 +1265,116 @@ const styles = StyleSheet.create({
     color: '#4A5568',
     paddingLeft: 46,
     fontWeight: '500',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 90, 
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#4A7CFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#4A7CFF',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 10,
+    zIndex: 9999,
+  },
+  // Search Modal Styles
+  searchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EDF2F7',
+  },
+  searchModalBack: {
+    padding: 4,
+    marginRight: 8,
+  },
+  searchModalInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
+  },
+  searchModalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1A2B4A',
+    fontWeight: '500',
+    padding: 0,
+  },
+  searchResultCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#F0F4F8',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  searchResultImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+  },
+  searchResultInfo: {
+    flex: 1,
+    marginLeft: 16,
+    justifyContent: 'center',
+  },
+  searchResultName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A2B4A',
+    marginBottom: 4,
+  },
+  searchResultLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  searchResultAddress: {
+    fontSize: 12,
+    color: '#718096',
+    flex: 1,
+  },
+  searchResultFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  searchResultRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  searchResultRatingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D69E2E',
+  },
+  searchResultLink: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4A7CFF',
   },
 });
